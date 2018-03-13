@@ -8,7 +8,6 @@ import numpy
 import os.path
 import json
 import graphene
-import inspect
 from types import ModuleType
 
 from graphene.types import Scalar
