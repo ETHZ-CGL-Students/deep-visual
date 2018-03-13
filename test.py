@@ -1,143 +1,220 @@
+# -*- coding: utf-8 -*-
+
 import tensorflow as tf
 import tornado.ioloop
 import tornado.web
 import math
 import numpy
+import os.path
+import json
+import graphene
+import inspect
+from types import ModuleType
 
-from tensorflow.examples.tutorials.mnist import input_data
-mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+from graphene.types import Scalar
+from graphql.language import ast
 
-def weight_variable(shape):
-	initial = tf.truncated_normal(shape, stddev=0.1)
-	return tf.Variable(initial)
+from tornadoql.tornadoql import TornadoQL, PORT
 
-def bias_variable(shape):
-	initial = tf.constant(0.1, shape=shape)
-	return tf.Variable(initial)
+from keras.engine.topology import Container
+from keras.models import Sequential
+from keras.layers import Dense
 
-def conv2d(x, W):
-	return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+# from tensorflow.examples.tutorials.mnist import input_data
+# mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 
-def max_pool_2x2(x):
-	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+# def weight_variable(shape):
+# 	initial = tf.truncated_normal(shape, stddev=0.1)
+# 	return tf.Variable(initial)
 
-x = tf.placeholder(tf.float32, [None, 784])
-#W = tf.Variable(tf.zeros([784, 10]))
-#b = tf.Variable(tf.zeros([10]))
+# def bias_variable(shape):
+# 	initial = tf.constant(0.1, shape=shape)
+# 	return tf.Variable(initial)
 
-x_image = tf.reshape(x, [-1, 28, 28, 1])
+# def conv2d(x, W):
+# 	return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-W_conv1 = weight_variable([5, 5, 1, 32])
-b_conv1 = bias_variable([32])
+# def max_pool_2x2(x):
+# 	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-h_pool1 = max_pool_2x2(h_conv1)
+# class MyEncoder(json.JSONEncoder):
+# 	def default(self, obj):
+# 		if isinstance(obj, numpy.integer):
+# 			return int(obj)
+# 		elif isinstance(obj, numpy.floating):
+# 			return float(obj)
+# 		elif isinstance(obj, numpy.ndarray):
+# 			return obj.tolist()
+# 		else:
+# 			return super(MyEncoder, self).default(obj)
 
-W_conv2 = weight_variable([5, 5, 32, 64])
-b_conv2 = bias_variable([64])
+# x = tf.placeholder(tf.float32, [None, 784])
+# #W = tf.Variable(tf.zeros([784, 10]))
+# #b = tf.Variable(tf.zeros([10]))
 
-h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-h_pool2 = max_pool_2x2(h_conv2)
+# x_image = tf.reshape(x, [-1, 28, 28, 1])
 
-W_fc1 = weight_variable([7 * 7 * 64, 1024])
-b_fc1 = bias_variable([1024])
+# W_conv1 = weight_variable([5, 5, 1, 32])
+# b_conv1 = bias_variable([32])
 
-h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
-h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+# h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+# h_pool1 = max_pool_2x2(h_conv1)
 
-keep_prob = tf.placeholder(tf.float32)
-h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+# W_conv2 = weight_variable([5, 5, 32, 64])
+# b_conv2 = bias_variable([64])
 
-W_fc2 = weight_variable([1024, 10])
-b_fc2 = bias_variable([10])
+# h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+# h_pool2 = max_pool_2x2(h_conv2)
 
-#y = tf.matmul(x, W) + b
-y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+# W_fc1 = weight_variable([7 * 7 * 64, 1024])
+# b_fc1 = bias_variable([1024])
 
-y_ = tf.placeholder(tf.float32, [None, 10])
+# h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
+# h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
 
-#loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
-#train_step = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
-loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))
-train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
+# keep_prob = tf.placeholder(tf.float32)
+# h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
-sess = tf.InteractiveSession()
-tf.global_variables_initializer().run()
+# W_fc2 = weight_variable([1024, 10])
+# b_fc2 = bias_variable([10])
 
-for step in range(1000):
-	batch_xs, batch_ys = mnist.train.next_batch(100)
-	_, loss_val = sess.run([train_step, loss], feed_dict={x: batch_xs, y_: batch_ys, keep_prob: 0.5})
-	if step % 100 == 0:
-		print("Step: {}, Loss: {}".format(step, loss_val))
+# #y = tf.matmul(x, W) + b
+# y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
-#correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+# y_ = tf.placeholder(tf.float32, [None, 10])
 
-print(sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1}))
+# #loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
+# #train_step = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+# loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))
+# train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
+# saver = tf.train.Saver()
 
-class MainHandler(tornado.web.RequestHandler):
-	def get(self):
-		self.write("<!DOCTYPE html><html><head></head><body>")
+primitive = (int, str, bool)
+def is_primitive(thing):
+	return type(thing) in primitive
 
-		iMax = len(mnist.test.images) - 1
-		index = int(self.get_argument("i", 0))
-		if (index < 0 or index > iMax):
-			self.redirect("?i=0")
-			return
+def is_excluded(thing):
+	return not is_primitive(thing) and not isinstance(thing, Container)
 
-		self.write("<form method='GET'>")
-		self.write("<input name='i' type='number' min='0' max='{0}' value={1}>"
-			.format(iMax, index))
-		self.write("<input type='submit' value='Show' /></form>")
+class DataValue(Scalar):
+	@staticmethod
+	def serialize(data):
+		if is_primitive(data):
+			return data
+		return None
 
-		self.write("<div style='display: inline-block'>")
-		self.write("<svg width='280' height='280'>")
-		img = mnist.test.images[index]
-		for i in range(0, len(img)):
-			self.write("<rect x='{0}' y='{1}' width='10' height='10' style='fill:rgb({2:.0f},{2:.0f},{2:.0f})' />".format((i % 28) * 10, math.floor(i / 28) * 10, round((1 - img[i]) * 255)))
-		self.write("</svg></div>")
+	@staticmethod
+	def parse_literal(node):
+		return None
 
-		self.write("<div style='display: inline-block'><h1>Labels</h1>")
-		self.write("<table><thead><tr><th>Index</th><th>Value</th></tr></thead><tbody>")
-		labels = mnist.test.labels[index]
-		pred = numpy.argmax(labels)
-		for i in range(0, len(labels)):
-			self.write("<tr style='background-color:{0};'><td>{1}</td><td>{2}</td></tr>"
-				.format("green" if pred == i else "transparent", i, labels[i]))
-		self.write("</tbody></table></div>")
+	@staticmethod
+	def parse_value(value):
+		return None
 
-		res, resSoft = sess.run([y_conv, tf.nn.softmax(y_conv)], feed_dict={x: [img], keep_prob: 1})
-		res = res[0]
-		resSoft = resSoft[0]
-		resPred = numpy.argmax(res)
-		self.write("<div style='display: inline-block'><h1>Prediction</h1>")
-		self.write("<table><thead><tr><th>Index</th><th>Value</th><th>Softmax</th></tr></thead><tbody>")
-		for i in range(0, len(res)):
-			self.write("<tr style='background-color:{0};'><td>{1}</td><td>{2: .10f}</td><td>{3: 1.10f}</td></tr>"
-				.format(("green" if resPred == pred else "orange") if resPred == i else 
-					("yellow" if resSoft[i] > resSoft[resPred] / 2 else "transparent"), i, res[i], resSoft[i]))
-		self.write("</tbody></table></div>")
+class Variable(graphene.ObjectType):
+	name = graphene.String(required = True)
+	type = graphene.String(required = True)
+	value = graphene.Field(DataValue)
 
-		#self.write("<h1>B</h1>")
-		#bs = b.eval(sess)
-		#for val in bs:
-		#	self.write("{}, ".format(val))
+	def resolve_type(self, info):
+		return type(self.value).__name__
 
-		#self.write("<h1>W</h1>")
-		#ws = W.eval(sess)
-		#for row in ws:
-		#	for val in row:
-		#		self.write("{}, ".format(val))
+class TensorShape(graphene.ObjectType):
+	dims = graphene.List(graphene.String)
+	nDims = graphene.String()
 
-		self.write("</body></html>")
+class TensorVariable(graphene.ObjectType):
+	name = graphene.String()
+	type = graphene.String()
+	shape = graphene.Field(TensorShape)
 
-def make_app():
-	return tornado.web.Application([
-		(r"/", MainHandler),
-	])
+	def resolve_type(self, info):
+		return self.dtype.as_numpy_dtype.__name__
+
+class Tensor(graphene.ObjectType):
+	name = graphene.String()
+	type = graphene.String()
+	shape = graphene.Field(TensorShape)
+
+	def resolve_type(self, info):
+		return self.dtype.as_numpy_dtype.__name__
+
+class Layer(graphene.ObjectType):
+	name = graphene.String()
+	type = graphene.String()
+	config = graphene.JSONString()
+	weights = graphene.List(TensorVariable)
+	input = graphene.Field(Tensor)
+	output = graphene.Field(Tensor)
+
+	def resolve_type(self, info):
+		return type(self).__name__
+	def resolve_config(self, info):
+		return self.get_config()
+
+class Model(graphene.ObjectType):
+	name = graphene.String()
+	type = graphene.String()
+	config = graphene.JSONString()
+	layers = graphene.List(Layer)
+	inputs = graphene.List(Tensor)
+	outputs = graphene.List(Tensor)
+
+	def resolve_type(self, info):
+		return type(self).__name__
+	def resolve_config(self, info):
+		return self.get_config()
+
+class Query(graphene.ObjectType):
+	getVars = graphene.List(Variable)
+	getModels = graphene.List(Model)
+
+	def resolve_getVars(self, info):
+		vars = []
+		for name, value in list(globals().items()):
+			if (is_excluded(value) or not is_primitive(value)):
+				continue
+
+			vars.append(Variable(name = name, value = value))
+		return vars
+
+	def resolve_getModels(self, info):
+		vars = []
+		for name, value in list(globals().items()):
+			if (is_excluded(value) or is_primitive(value)):
+				continue
+			vars.append(value)
+		return vars
+
+schema = graphene.Schema(query = Query)
+
+model = Sequential()
+model.add(Dense(units=32, activation='relu', input_dim=100))
+model.add(Dense(units=10, activation='softmax'))
+model.add(Dense(units=32, activation='relu'))
+model.add(Dense(units=10, activation='softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+
+# with tf.Session() as sess:
+# 	sess.run(tf.global_variables_initializer())
+
+# 	if os.path.isfile("save/model.ckpt.index"):
+# 		saver.restore(sess, "save/model.ckpt")
+# 		print("Restored model from file!")
+# 	else:
+# 		for step in range(20000):
+# 			batch_xs, batch_ys = mnist.train.next_batch(200)
+# 			_, loss_val = sess.run([train_step, loss], feed_dict={x: batch_xs, y_: batch_ys, keep_prob: 0.5})
+# 			if step % 100 == 0:
+# 				print("Step: {}, Loss: {}".format(step, loss_val))
+# 		save_path = saver.save(sess, "save/model.ckpt")
+# 		print("Model saved in file: %s" % save_path)
+
+print("Ready!")
+
+def main():
+	print('GraphQL server starting on %s' % PORT)
+	TornadoQL.start(schema)
 
 if __name__ == "__main__":
-	app = make_app()
-	app.listen(8888)
-	tornado.ioloop.IOLoop.current().start()
+	main()
