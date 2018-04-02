@@ -10,6 +10,7 @@ interface Tensor {
 }
 
 interface Variable {
+	id: number
 	name: string
 	type: string
 	value: string | number | null
@@ -23,6 +24,7 @@ interface Layer {
 }
 
 interface Model {
+	id: number
 	name: string
 	type: string
 	layers: Layer[]

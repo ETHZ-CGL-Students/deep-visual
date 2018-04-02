@@ -5,10 +5,15 @@ import { TensorBlock } from '.'
 
 interface Props {
 	layer: Layer
+	onLayerTensorClick: (layer: Layer, tensor: Tensor, x: number, y: number) => void
 	[x: string]: any
 }
 
 export class LayerBlock extends React.Component<Props> {
+
+	handleTensorClick(tensor: Tensor, x: number, y: number) {
+		this.props.onLayerTensorClick(this.props.layer, tensor, x, y)
+	}
 
 	render() {
 		const { layer, ...rest } = this.props
@@ -16,24 +21,26 @@ export class LayerBlock extends React.Component<Props> {
 		return (
 			<Group {...rest}>
 				<Rect
-					width={150}
+					width={120}
 					height={100}
 					fill="orange"
 				/>
-				<Text text={layer.name} />
-				<Text text={layer.type} y={15} />
+				<Text text={layer.name} x={5} y={5} />
+				<Text text={layer.type} x={5} y={20} />
 
 				<TensorBlock
 					tensor={layer.input}
 					x={10}
-					y={50}
+					y={70}
+					onClick={(t, x, y) => this.handleTensorClick(t, x, y)}
 				/>
 
 				<TensorBlock
 					isOutput
 					tensor={layer.output}
-					x={140}
-					y={50}
+					x={110}
+					y={70}
+					onClick={(t, x, y) => this.handleTensorClick(t, x, y)}
 				/>
 			</Group>
 		)
