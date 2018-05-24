@@ -1,33 +1,32 @@
-
 interface TensorShape {
-	dims: string[]
+	dims: string[];
 }
 
 interface Tensor {
-	name: string
-	type: string
-	shape: TensorShape
+	name: string;
+	type: string;
+	shape: TensorShape;
 }
 
 interface Variable {
-	id: number
-	name: string
-	type: string
-	value: string | number | null
+	id: number;
+	name: string;
+	type: string;
+	value: string | number | null;
 }
 
 interface Layer {
-	name: string
-	type: string
-	input: Tensor
-	output: Tensor
+	name: string;
+	type: string;
+	input: Tensor;
+	output: Tensor;
 }
 
 interface Model {
-	id: number
-	name: string
-	type: string
-	layers: Layer[]
-	inputs: Tensor[]
-	outputs: Tensor[]
+	id: number;
+	name: string;
+	type: string;
+	layers: Layer[];
+	inputs: Tensor[];
+	outputs: Tensor[];
 }
