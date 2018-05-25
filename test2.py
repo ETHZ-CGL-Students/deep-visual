@@ -53,7 +53,7 @@ graph = tf.get_default_graph()
 
 
 @sio.on('eval')
-def start_train():
+def eval():
     with graph.as_default():
         nmodel = Model(inputs=[model.input], outputs=[model.layers[1].output])
         nmodel.compile(
@@ -64,7 +64,7 @@ def start_train():
 
 
 @sio.on('start')
-def start_train():
+def train():
     with graph.as_default():
         model.fit(
             x_train,
