@@ -1,16 +1,27 @@
-import * as Konva from 'konva';
 import * as React from 'react';
-import { Circle, Group, Text } from 'react-konva';
+import styled from 'styled-components';
+
+const Wrapper = styled.div`
+	position: absolute;
+`;
+
+const Dot = styled.div`
+	display: inline-block;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background-color: black;
+`;
 
 interface Props {
+	x: number;
+	y: number;
 	isOutput?: boolean;
 	tensor: Tensor;
-	onClick: (tensor: Tensor, x: number, y: number) => void;
-	[x: string]: any;
+	onClick: (tensor: Tensor, event: React.MouseEvent<HTMLElement>) => void;
 }
 
 interface OwnState {
-	ref: Konva.Text | null;
 	over: boolean;
 }
 
@@ -19,7 +30,6 @@ export class TensorBlock extends React.Component<Props, OwnState> {
 		super(props);
 
 		this.state = {
-			ref: null,
 			over: false
 		};
 	}
@@ -33,36 +43,22 @@ export class TensorBlock extends React.Component<Props, OwnState> {
 	}
 
 	render() {
-		const { tensor, isOutput, onClick, ...rest } = this.props;
+		const { x, y, isOutput } = this.props;
 
 		return (
-			<Group {...rest}>
-				<Circle
-					radius={this.state.over ? 10 : 5}
-					fill={this.state.over ? 'green' : 'black'}
+			<Wrapper
+				style={{
+					left: isOutput ? undefined : x,
+					right: isOutput ? x : undefined,
+					top: y
+				}}
+			>
+				<Dot
 					onMouseEnter={() => this.handleMouseEnter()}
 					onMouseLeave={() => this.handleMouseLeave()}
-					onClick={e =>
-						this.props.onClick(this.props.tensor, e.evt.offsetX, e.evt.offsetY)
-					}
+					onClick={e => this.props.onClick(this.props.tensor, e)}
 				/>
-				<Text
-					text={'<' + tensor.shape.dims.join(', ') + '>'}
-					x={
-						isOutput
-							? this.state.ref
-								? -this.state.ref.getTextWidth() + 2
-								: 0
-							: -2
-					}
-					y={isOutput ? -20 : 8}
-					ref={r => {
-						if (r && !this.state.ref) {
-							this.setState({ ref: r as any });
-						}
-					}}
-				/>
-			</Group>
+			</Wrapper>
 		);
 	}
 }

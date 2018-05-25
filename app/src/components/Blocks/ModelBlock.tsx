@@ -1,10 +1,39 @@
-import * as Konva from 'konva';
 import * as React from 'react';
-import { Group, Line, Rect, Text } from 'react-konva';
+import styled from 'styled-components';
 
 import { LayerBlock } from '.';
 import { socket } from '../../SocketIO';
 // import { Heatmap } from '../Heatmap';
+
+const Wrapper = styled.div`
+	display: inline-block;
+	padding: 10px;
+	background-color: lightgrey;
+	box-sizing: border-box;
+`;
+
+const Popup = styled.div`
+	position: absolute;
+	max-width: 600px;
+	max-height: 300px;
+	padding: 10px;
+	z-index: 100;
+	background-color: white;
+	border: 1px solid black;
+	overflow: scroll;
+`;
+
+const Table = styled.table`
+	margin: 0;
+	padding: 0;
+	border-collapse: collapse;
+`;
+
+const Td = styled.td`
+	min-width: 10px;
+	height: 10px;
+	border-collapse: collapse;
+`;
 
 export interface Props {
 	model: Model;
@@ -17,8 +46,9 @@ interface OwnState {
 		x: number;
 		y: number;
 	} | null;
-	ref: Konva.Group | null;
-	weights: Float32Array[];
+	loading: boolean;
+	weights: number[][];
+	evals: number[][];
 }
 
 export class ModelBlock extends React.Component<Props, OwnState> {
@@ -27,130 +57,161 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 
 		this.state = {
 			popup: null,
-			ref: null,
-			weights: []
+			loading: false,
+			weights: [],
+			evals: []
 		};
 	}
 
-	handleLayerclick(layer: Layer, x: number, y: number): void {
+	handleLayerclick(layer: Layer, event: React.MouseEvent<HTMLElement>): void {
 		if (this.state.popup && layer === this.state.popup.layer) {
 			this.setState({ popup: null });
-		} else {
-			socket.emit('layer', layer.name, (data: ArrayBuffer) => {
+			return;
+		}
+
+		this.setState({ loading: true, weights: [] });
+
+		socket.emit('layer', layer.name, (data: ArrayBuffer) => {
+			const info = new Int32Array(data, 0, 2);
+			const l = info[0];
+			const w = info[1];
+
+			const d = new Float32Array(data, 8);
+			const ds: number[][] = [];
+			for (let i = 0; i < l; i++) {
+				ds.push(Array.from(d.slice(i * w, (i + 1) * w)));
+			}
+			this.setState({
+				loading: false,
+				weights: ds
+			});
+		});
+
+		this.setState({
+			popup: {
+				layer,
+				x: event.clientX,
+				y: event.clientY
+			}
+		});
+	}
+
+	handleTensorClick(
+		layer: Layer,
+		tensor: Tensor,
+		event: React.MouseEvent<HTMLElement>
+	): void {
+		if (this.state.popup && tensor === this.state.popup.tensor) {
+			this.setState({ popup: null });
+			return;
+		}
+
+		this.setState({ loading: true, evals: [] });
+
+		socket.emit(
+			'eval',
+			this.props.model.layers.indexOf(layer),
+			layer.input === tensor,
+			(data: ArrayBuffer) => {
 				const info = new Int32Array(data, 0, 2);
 				const l = info[0];
 				const w = info[1];
 
 				const d = new Float32Array(data, 8);
-				const ds: Float32Array[] = [];
+				const ds: number[][] = [];
 				for (let i = 0; i < l; i++) {
-					ds.push(d.slice(i * w, (i + 1) * w));
+					ds.push(Array.from(d.slice(i * w, (i + 1) * w)));
 				}
 				this.setState({
-					weights: ds
+					loading: false,
+					evals: ds
 				});
-			});
+				console.log(ds);
+			}
+		);
 
-			this.setState({
-				popup: {
-					layer,
-					x,
-					y
-				}
-			});
-		}
-	}
-
-	handleTensorClick(layer: Layer, tensor: Tensor, x: number, y: number): void {
-		if (this.state.popup && tensor === this.state.popup.tensor) {
-			this.setState({ popup: null });
-		} else {
-			this.setState({
-				popup: {
-					tensor,
-					x,
-					y
-				}
-			});
-		}
+		this.setState({
+			popup: {
+				tensor,
+				x: event.clientX,
+				y: event.clientY
+			}
+		});
 	}
 
 	render() {
 		const { model } = this.props;
-		const { popup, ref, weights } = this.state;
-
-		const lines: JSX.Element[] = [];
-		for (let i = 0; i < model.layers.length - 1; i++) {
-			lines.push(
-				<Line
-					key={i}
-					points={[
-						10 + 110 + i * 130,
-						50 + 70,
-						10 + 10 + (i + 1) * 130,
-						50 + 70
-					]}
-					stroke="red"
-					strokeWidth={5}
-					lineCap="round"
-					lineJoin="round"
-					tension={1}
-				/>
-			);
-		}
+		const { popup, loading, weights, evals } = this.state;
 
 		return (
-			<Group
-				draggable
-				ref={r => {
-					if (r && !this.state.ref) {
-						this.setState({ ref: r as any });
-					}
-				}}
-			>
-				<Rect
-					width={model.layers.length * 130 + 10}
-					height={160}
-					fill="lightblue"
-					stroke="gray"
-					strokeWidth={2}
-				/>
-				<Text text={model.name} x={5} y={5} />
-				<Text text={model.type} x={5} y={20} />
-
-				{lines}
+			<Wrapper>
+				<div>Name: {model.name}</div>
+				<div>Type: {model.type}</div>
 
 				{model.layers.map((layer, i) => (
 					<LayerBlock
 						key={layer.name}
 						layer={layer}
-						x={10 + i * 130}
-						y={50}
-						onLayerClick={(l, x, y) => this.handleLayerclick(l, x, y)}
-						onLayerTensorClick={(l, t, x, y) =>
-							this.handleTensorClick(l, t, x, y)
-						}
+						onLayerClick={(l, e) => this.handleLayerclick(l, e)}
+						onLayerTensorClick={(l, t, e) => this.handleTensorClick(l, t, e)}
 					/>
 				))}
 
 				{popup && (
-					<Group
-						x={popup.x}
-						y={popup.y}
-						offsetX={ref ? ref.x() : 0}
-						offsetY={ref ? ref.y() : 0}
-					>
-						<Rect fill="white" stroke="black" width={200} height={80} />
-						{popup.layer && <Text text={popup.layer.name} x={2} y={2} />}
-						{popup.tensor && <Text text={popup.tensor.name} x={2} y={2} />}
-						{popup.layer && weights.length ? (
-							<Text text={'' + weights[0]} x={2} y={22} />
-						) : (
-							<Text text="Loading..." x={2} y={22} />
-						)}
-					</Group>
+					<Popup style={{ left: popup.x, top: popup.y }}>
+						{popup.layer ? (
+							!loading ? (
+								weights.length ? (
+									<>
+										<div>
+											Shape: {weights.length} x {weights[0].length}
+										</div>
+										{this.renderData(weights)}
+									</>
+								) : (
+									'No data'
+								)
+							) : (
+								'Loading...'
+							)
+						) : null}
+						{popup.tensor ? (
+							<>
+								<div>
+									Shape:{' '}
+									{popup.tensor.shape.dims.map(d => (d ? d : '?')).join(' x ')}
+								</div>
+								{!loading
+									? evals.length
+										? this.renderData(evals)
+										: 'No data'
+									: 'Loading...'}
+							</>
+						) : null}
+					</Popup>
 				)}
-			</Group>
+
+				<div style={{ clear: 'both' }} />
+			</Wrapper>
+		);
+	}
+
+	renderData(data: number[][]) {
+		return (
+			<Table>
+				<tbody>
+					{data.map((ds, i) => (
+						<tr key={i}>
+							{ds.map((d, j) => (
+								<Td
+									key={j}
+									style={{ background: `hsl(${240 - d * 240}, 100%, 50%)` }}
+								/>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</Table>
 		);
 	}
 }

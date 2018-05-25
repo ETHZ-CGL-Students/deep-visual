@@ -1,62 +1,72 @@
 import * as React from 'react';
-import { Group, Rect, Text } from 'react-konva';
+import styled from 'styled-components';
 
 import { TensorBlock } from '.';
 
+const Wrapper = styled.div`
+	position: relative;
+	display: inline-block;
+	width: 140px;
+	height: 120px;
+	margin: 10px;
+	padding: 10px;
+	background-color: orange;
+	box-sizing: border-box;
+`;
+
+const Rect = styled.div`
+	position: absolute;
+	left: 60px;
+	bottom: 10px;
+	width: 20px;
+	height: 20px;
+	background-color: black;
+`;
+
 interface Props {
 	layer: Layer;
-	onLayerClick: (layer: Layer, x: number, y: number) => void;
+	onLayerClick: (layer: Layer, event: React.MouseEvent<HTMLElement>) => void;
 	onLayerTensorClick: (
 		layer: Layer,
 		tensor: Tensor,
-		x: number,
-		y: number
+		event: React.MouseEvent<HTMLElement>
 	) => void;
-	[x: string]: any;
 }
 
 export class LayerBlock extends React.Component<Props> {
-	handleLayerClick(x: number, y: number) {
-		this.props.onLayerClick(this.props.layer, x, y);
+	handleLayerClick(event: React.MouseEvent<HTMLElement>) {
+		this.props.onLayerClick(this.props.layer, event);
 	}
 
-	handleTensorClick(tensor: Tensor, x: number, y: number) {
-		this.props.onLayerTensorClick(this.props.layer, tensor, x, y);
+	handleTensorClick(tensor: Tensor, event: React.MouseEvent<HTMLElement>) {
+		this.props.onLayerTensorClick(this.props.layer, tensor, event);
 	}
 
 	render() {
-		const { layer, ...rest } = this.props;
+		const { layer } = this.props;
 
 		return (
-			<Group {...rest}>
-				<Rect width={120} height={100} fill="orange" />
-				<Text text={layer.name} x={5} y={5} />
-				<Text text={layer.type} x={5} y={20} />
+			<Wrapper>
+				<div>Name: {layer.name}</div>
+				<div>Type: {layer.type}</div>
 
-				<Rect
-					x={55}
-					y={86}
-					width={10}
-					height={10}
-					fill="black"
-					onClick={e => this.handleLayerClick(e.evt.offsetX, e.evt.offsetY)}
-				/>
+				<Rect onClick={e => this.handleLayerClick(e)} />
 
 				<TensorBlock
 					tensor={layer.input}
 					x={10}
-					y={70}
-					onClick={(t, x, y) => this.handleTensorClick(t, x, y)}
+					y={60}
+					onClick={(t, e) => this.handleTensorClick(t, e)}
 				/>
 
 				<TensorBlock
 					isOutput
 					tensor={layer.output}
-					x={110}
-					y={70}
-					onClick={(t, x, y) => this.handleTensorClick(t, x, y)}
+					x={10}
+					y={60}
+					onClick={(t, e) => this.handleTensorClick(t, e)}
 				/>
-			</Group>
+			</Wrapper>
 		);
 	}
 }

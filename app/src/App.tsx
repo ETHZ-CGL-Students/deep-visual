@@ -1,34 +1,19 @@
 import * as React from 'react';
-import { Layer, Stage } from 'react-konva';
 import styled from 'styled-components';
 
 import { ModelBlock } from './components/Blocks';
 import { socket } from './SocketIO';
 
-const MENU_WIDTH = 220;
-
 const Wrapper = styled.div`
-	display: flex;
-	justify-content: space-between;
-	align-items: stretch;
+	width: 100vw;
 	height: 100vh;
-`;
-
-const Menu = styled.div`
-	padding: 4px;
-	overflow: auto;
-	z-index: 1000;
-	width: ${MENU_WIDTH}px;
-	border-right: 1px solid black;
-`;
-
-const Content = styled.div`
-	flex: 1;
+	margin: 0;
+	padding: 10px;
+	box-sizing: border-box;
 `;
 
 interface OwnState {
 	model?: Model;
-	ref?: HTMLDivElement;
 	epochs: number;
 	epoch: number;
 	batches: number;
@@ -83,10 +68,6 @@ class App extends React.Component<{}, OwnState> {
 		socket.emit('start');
 	}
 
-	eval() {
-		socket.emit('eval');
-	}
-
 	train_begin() {
 		console.log('Starting...');
 	}
@@ -107,37 +88,22 @@ class App extends React.Component<{}, OwnState> {
 	}
 
 	render() {
-		const { model, ref } = this.state;
-		const width = ref ? ref.getBoundingClientRect().width : 400;
-		const height = ref ? ref.getBoundingClientRect().height : 400;
+		const { model } = this.state;
 
 		return (
 			<Wrapper>
-				<Menu />
+				<button onClick={() => this.start()}>Start training</button>
+				<br />
+				<br />
 
-				<Content
-					innerRef={(r: any) => {
-						if (r && !this.state.ref) {
-							this.setState({ ref: r });
-						}
-					}}
-				>
-					<button onClick={() => this.start()}>Start training</button>
-					<br />
-					<br />
-					<button onClick={() => this.eval()}>Eval</button>
-					<br />
-					<br />
-					<progress value={this.state.epoch} max={this.state.epochs} />
-					<br />
-					<progress value={this.state.batch} max={this.state.batches} />
-					<br />
-					<Stage width={width} height={height}>
-						<Layer>
-							{model && <ModelBlock key={model.id} model={model} />}
-						</Layer>
-					</Stage>
-				</Content>
+				<progress value={this.state.epoch} max={this.state.epochs} />
+				<br />
+
+				<progress value={this.state.batch} max={this.state.batches} />
+				<br />
+				<br />
+
+				{model && <ModelBlock key={model.id} model={model} />}
 
 				<div style={{ clear: 'both' }} />
 			</Wrapper>

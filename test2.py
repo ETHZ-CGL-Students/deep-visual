@@ -1,7 +1,7 @@
 import keras
 import os
 import time
-import numpy
+import numpy as np
 import tensorflow as tf
 
 from keras.datasets import mnist
@@ -45,6 +45,11 @@ model.add(Dense(num_classes, activation='softmax'))
 model.compile(
     loss='categorical_crossentropy', optimizer=RMSprop(), metrics=['accuracy'])
 
+model.evaluate(x_test, y_test, verbose=1)
+
+print(len(x_test))
+print(len(x_test[0]))
+
 model.summary()
 
 sio = expose_model(model)
@@ -53,14 +58,19 @@ graph = tf.get_default_graph()
 
 
 @sio.on('eval')
-def eval():
+def eval(layer=-1, input=True):
     with graph.as_default():
-        nmodel = Model(inputs=[model.input], outputs=[model.layers[1].output])
+        output = model.layers[layer].input if input == True else model.layers[
+            layer].output
+        nmodel = Model(inputs=[model.input], outputs=[output])
         nmodel.compile(
             loss='categorical_crossentropy',
             optimizer=RMSprop(),
             metrics=['accuracy'])
-        print(nmodel.predict(x_test, batch_size=batch_size, verbose=1))
+        res = nmodel.predict(
+            x=np.array([x_test[0]]), batch_size=batch_size, verbose=1)
+        return len(res).to_bytes(4, 'little') + len(res[0]).to_bytes(
+            4, 'little') + res.tostring()
 
 
 @sio.on('start')
