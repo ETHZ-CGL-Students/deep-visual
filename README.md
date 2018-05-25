@@ -6,14 +6,27 @@ Bachelor Thesis, Marco Crespi, 2018 @ ETHZ
 
 ## Setup
 
-1. `pip install tensorflow keras tornado graphene`
-1. `npm i -g yarn`
-1. `cd public && yarn install && cd ..`
+### Python (backend)
 
+1.  `pip3 install tensorflow keras eventlet flask flask_socketio`
+
+### React (frontend)
+
+1.  `cd app`
+1.  `npm install`
+
+### Redis (from: https://redis.io/topics/quickstart)
+
+1.  `wget http://download.redis.io/redis-stable.tar.gz`
+1.  `tar xvzf redis-stable.tar.gz`
+1.  `cd redis-stable`
+1.  `make`
+1.  `make install`
 
 ## Run
 
-Start two command prompts
+Start three command prompts
 
-1. `py ./test.py`
-1. `cd public && yarn start`
+* `redis-server`
+* `python3 test2.py`
+* `cd app && npm start`
