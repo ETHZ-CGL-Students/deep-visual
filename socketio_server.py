@@ -77,6 +77,9 @@ class FitCallback(keras.callbacks.Callback):
     def on_train_begin(self, logs={}):
         socketio.emit('train_begin', logs)
 
+    def on_train_end(self, logs={}):
+        socketio.emit('train_end', logs)
+
     def on_batch_begin(self, batch, logs={}):
         if (time.time() - self.last_time < 1):
             return
@@ -94,7 +97,6 @@ def expose_model(model):
 
     @sio.on('layer')
     def getLayer(layer_name=None):
-        print('TESTING')
         layer = model.get_layer(name=layer_name)
         weights = layer.get_weights()
         if len(weights) <= 0:

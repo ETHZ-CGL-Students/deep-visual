@@ -57,6 +57,7 @@ class App extends React.Component<{}, OwnState> {
 		});
 		socket.on('set_params', (data: any) => this.set_params(data));
 		socket.on('train_begin', () => this.train_begin());
+		socket.on('train_end', () => this.train_end());
 		socket.on('epoch_begin', (epoch: number) => this.epoch_begin(epoch));
 		socket.on('batch_begin', (batch: number) => this.batch_begin(batch));
 	}
@@ -65,6 +66,7 @@ class App extends React.Component<{}, OwnState> {
 		// window.removeEventListener('keyup', e => this.handleKeyUp(e), false);
 		socket.off('set_params');
 		socket.off('train_begin');
+		socket.off('train_end');
 		socket.off('epoch_begin');
 		socket.off('batch_begin');
 	}
@@ -81,8 +83,19 @@ class App extends React.Component<{}, OwnState> {
 		socket.emit('start');
 	}
 
+	eval() {
+		socket.emit('eval');
+	}
+
 	train_begin() {
 		console.log('Starting...');
+	}
+
+	train_end() {
+		this.setState({
+			epoch: this.state.epochs,
+			batch: this.state.batches
+		});
 	}
 
 	epoch_begin(epoch: number) {
@@ -110,6 +123,9 @@ class App extends React.Component<{}, OwnState> {
 					}}
 				>
 					<button onClick={() => this.start()}>Start training</button>
+					<br />
+					<br />
+					<button onClick={() => this.eval()}>Eval</button>
 					<br />
 					<br />
 					<progress value={this.state.epoch} max={this.state.epochs} />
