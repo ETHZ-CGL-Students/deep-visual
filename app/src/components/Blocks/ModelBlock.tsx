@@ -1,4 +1,5 @@
 import * as React from 'react';
+import Draggable from 'react-draggable';
 import styled from 'styled-components';
 
 import { LayerBlock } from '.';
@@ -6,6 +7,7 @@ import { socket } from '../../SocketIO';
 // import { Heatmap } from '../Heatmap';
 
 const Wrapper = styled.div`
+	position: relative;
 	display: inline-block;
 	padding: 10px;
 	background-color: lightgrey;
@@ -144,19 +146,26 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 		const { popup, loading, weights, evals } = this.state;
 
 		return (
-			<Wrapper>
-				<div>Name: {model.name}</div>
-				<div>Type: {model.type}</div>
+			<>
+				<Draggable onDrag={(e, d) => console.log(d)} cancel=".cancel-drag">
+					<Wrapper>
+						<div>Name: {model.name}</div>
+						<div>Type: {model.type}</div>
 
-				{model.layers.map((layer, i) => (
-					<LayerBlock
-						key={layer.name}
-						layer={layer}
-						onLayerClick={(l, e) => this.handleLayerclick(l, e)}
-						onLayerTensorClick={(l, t, e) => this.handleTensorClick(l, t, e)}
-					/>
-				))}
+						{model.layers.map((layer, i) => (
+							<LayerBlock
+								key={layer.name}
+								layer={layer}
+								onLayerClick={(l, e) => this.handleLayerclick(l, e)}
+								onLayerTensorClick={(l, t, e) =>
+									this.handleTensorClick(l, t, e)
+								}
+							/>
+						))}
 
+						<div style={{ clear: 'both' }} />
+					</Wrapper>
+				</Draggable>
 				{popup && (
 					<Popup style={{ left: popup.x, top: popup.y }}>
 						{popup.layer ? (
@@ -190,9 +199,7 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 						) : null}
 					</Popup>
 				)}
-
-				<div style={{ clear: 'both' }} />
-			</Wrapper>
+			</>
 		);
 	}
 
@@ -200,16 +207,20 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 		return (
 			<Table>
 				<tbody>
-					{data.map((ds, i) => (
-						<tr key={i}>
-							{ds.map((d, j) => (
-								<Td
-									key={j}
-									style={{ background: `hsl(${240 - d * 240}, 100%, 50%)` }}
-								/>
-							))}
-						</tr>
-					))}
+					{data
+						.slice(0, 10)
+						.map((ds, i) => (
+							<tr key={i}>
+								{ds
+									.slice(0, 10)
+									.map((d, j) => (
+										<Td
+											key={j}
+											style={{ background: `hsl(${240 - d * 240}, 100%, 50%)` }}
+										/>
+									))}
+							</tr>
+						))}
 				</tbody>
 			</Table>
 		);

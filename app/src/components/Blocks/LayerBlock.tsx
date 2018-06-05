@@ -54,7 +54,6 @@ export class LayerBlock extends React.Component<Props> {
 
 				<TensorBlock
 					tensor={layer.input}
-					x={10}
 					y={60}
 					onClick={(t, e) => this.handleTensorClick(t, e)}
 				/>
@@ -62,7 +61,6 @@ export class LayerBlock extends React.Component<Props> {
 				<TensorBlock
 					isOutput
 					tensor={layer.output}
-					x={10}
 					y={60}
 					onClick={(t, e) => this.handleTensorClick(t, e)}
 				/>

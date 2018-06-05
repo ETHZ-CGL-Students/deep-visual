@@ -3,6 +3,7 @@ import styled from 'styled-components';
 
 const Wrapper = styled.div`
 	position: absolute;
+	user-select: none;
 `;
 
 const Dot = styled.div`
@@ -10,11 +11,9 @@ const Dot = styled.div`
 	width: 20px;
 	height: 20px;
 	border-radius: 50%;
-	background-color: black;
 `;
 
 interface Props {
-	x: number;
 	y: number;
 	isOutput?: boolean;
 	tensor: Tensor;
@@ -22,7 +21,8 @@ interface Props {
 }
 
 interface OwnState {
-	over: boolean;
+	clicked: boolean;
+	dragging: boolean;
 }
 
 export class TensorBlock extends React.Component<Props, OwnState> {
@@ -30,33 +30,49 @@ export class TensorBlock extends React.Component<Props, OwnState> {
 		super(props);
 
 		this.state = {
-			over: false
+			clicked: false,
+			dragging: false
 		};
+
+		this.handleMouseUp = this.handleMouseUp.bind(this);
 	}
 
-	handleMouseEnter() {
-		this.setState({ over: true });
+	handleMouseDown() {
+		this.setState({ clicked: true });
+	}
+
+	handleMouseUp() {
+		this.setState({ dragging: false, clicked: false });
+		window.removeEventListener('mouseup', this.handleMouseUp);
 	}
 
 	handleMouseLeave() {
-		this.setState({ over: false });
+		if (this.state.clicked) {
+			this.setState({ dragging: true });
+			window.addEventListener('mouseup', this.handleMouseUp);
+		}
 	}
 
 	render() {
-		const { x, y, isOutput } = this.props;
+		const { y, isOutput } = this.props;
 
 		return (
 			<Wrapper
+				className="cancel-drag"
 				style={{
-					left: isOutput ? undefined : x,
-					right: isOutput ? x : undefined,
+					left: isOutput ? undefined : -20,
+					right: isOutput ? -20 : undefined,
 					top: y
 				}}
 			>
 				<Dot
-					onMouseEnter={() => this.handleMouseEnter()}
+					onMouseDown={() => this.handleMouseDown()}
+					onMouseUp={() => this.handleMouseUp()}
 					onMouseLeave={() => this.handleMouseLeave()}
 					onClick={e => this.props.onClick(this.props.tensor, e)}
+					style={{
+						backgroundColor: this.state.dragging ? 'red' : 'black'
+					}}
 				/>
 			</Wrapper>
 		);
