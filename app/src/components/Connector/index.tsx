@@ -16,20 +16,25 @@ const Dot = styled.div`
 interface Props {
 	y: number;
 	isOutput?: boolean;
-	tensor: Tensor;
-	onClick: (tensor: Tensor, event: React.MouseEvent<HTMLElement>) => void;
+	id: string;
+	onClick?: (id: String) => void;
+	onConnect?: (from: string, to: string) => void;
 }
 
 interface OwnState {
+	hovered: boolean;
 	clicked: boolean;
 	dragging: boolean;
 }
 
-export class TensorBlock extends React.Component<Props, OwnState> {
+let clicked: Connector | undefined;
+
+export class Connector extends React.Component<Props, OwnState> {
 	constructor(props: Props) {
 		super(props);
 
 		this.state = {
+			hovered: false,
 			clicked: false,
 			dragging: false
 		};
@@ -39,22 +44,34 @@ export class TensorBlock extends React.Component<Props, OwnState> {
 
 	handleMouseDown() {
 		this.setState({ clicked: true });
+		clicked = this;
 	}
 
 	handleMouseUp() {
+		if (clicked && clicked !== this && this.props.onConnect) {
+			this.props.onConnect(clicked.props.id, this.props.id);
+		}
+
 		this.setState({ dragging: false, clicked: false });
 		window.removeEventListener('mouseup', this.handleMouseUp);
 	}
 
+	handleMouseEnter() {
+		this.setState({ hovered: true });
+	}
+
 	handleMouseLeave() {
 		if (this.state.clicked) {
-			this.setState({ dragging: true });
+			this.setState({ hovered: false, dragging: true });
 			window.addEventListener('mouseup', this.handleMouseUp);
+		} else {
+			this.setState({ hovered: false });
 		}
 	}
 
 	render() {
-		const { y, isOutput } = this.props;
+		const { id, y, isOutput, onClick } = this.props;
+		const { hovered, dragging } = this.state;
 
 		return (
 			<Wrapper
@@ -68,10 +85,15 @@ export class TensorBlock extends React.Component<Props, OwnState> {
 				<Dot
 					onMouseDown={() => this.handleMouseDown()}
 					onMouseUp={() => this.handleMouseUp()}
+					onMouseEnter={() => this.handleMouseEnter()}
 					onMouseLeave={() => this.handleMouseLeave()}
-					onClick={e => this.props.onClick(this.props.tensor, e)}
+					onClick={() => {
+						if (onClick) {
+							onClick(id);
+						}
+					}}
 					style={{
-						backgroundColor: this.state.dragging ? 'red' : 'black'
+						backgroundColor: dragging ? 'red' : hovered ? 'orange' : 'black'
 					}}
 				/>
 			</Wrapper>

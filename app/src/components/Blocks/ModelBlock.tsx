@@ -1,17 +1,20 @@
 import * as React from 'react';
-import Draggable from 'react-draggable';
 import styled from 'styled-components';
 
-import { LayerBlock } from '.';
-import { socket } from '../../SocketIO';
+import { socket } from '../../services/socket';
+import { Layer, Model, Tensor } from '../../types';
+import { readMatrixFromBuffer } from '../Util';
+
+import { BlockComp, BlockProps } from '.';
+import { LayerBlock } from './LayerBlock';
 // import { Heatmap } from '../Heatmap';
 
+const MENU_WIDTH = 200;
+
 const Wrapper = styled.div`
-	position: relative;
-	display: inline-block;
-	padding: 10px;
-	background-color: lightgrey;
-	box-sizing: border-box;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
 `;
 
 const Popup = styled.div`
@@ -37,8 +40,8 @@ const Td = styled.td`
 	border-collapse: collapse;
 `;
 
-export interface Props {
-	model: Model;
+export interface Props extends BlockProps {
+	block: Model;
 }
 
 interface OwnState {
@@ -53,7 +56,7 @@ interface OwnState {
 	evals: number[][];
 }
 
-export class ModelBlock extends React.Component<Props, OwnState> {
+export class ModelBlock extends BlockComp<Props, OwnState> {
 	constructor(props: Props) {
 		super(props);
 
@@ -74,25 +77,18 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 		this.setState({ loading: true, weights: [] });
 
 		socket.emit('layer', layer.name, (data: ArrayBuffer) => {
-			const info = new Int32Array(data, 0, 2);
-			const l = info[0];
-			const w = info[1];
+			const mat = readMatrixFromBuffer(data);
 
-			const d = new Float32Array(data, 8);
-			const ds: number[][] = [];
-			for (let i = 0; i < l; i++) {
-				ds.push(Array.from(d.slice(i * w, (i + 1) * w)));
-			}
 			this.setState({
 				loading: false,
-				weights: ds
+				weights: mat
 			});
 		});
 
 		this.setState({
 			popup: {
 				layer,
-				x: event.clientX,
+				x: event.clientX - MENU_WIDTH,
 				y: event.clientY
 			}
 		});
@@ -112,60 +108,47 @@ export class ModelBlock extends React.Component<Props, OwnState> {
 
 		socket.emit(
 			'eval',
-			this.props.model.layers.indexOf(layer),
+			this.props.block.layers.indexOf(layer),
 			layer.input === tensor,
 			(data: ArrayBuffer) => {
-				const info = new Int32Array(data, 0, 2);
-				const l = info[0];
-				const w = info[1];
+				const mat = readMatrixFromBuffer(data);
 
-				const d = new Float32Array(data, 8);
-				const ds: number[][] = [];
-				for (let i = 0; i < l; i++) {
-					ds.push(Array.from(d.slice(i * w, (i + 1) * w)));
-				}
 				this.setState({
 					loading: false,
-					evals: ds
+					evals: mat
 				});
-				console.log(ds);
 			}
 		);
 
 		this.setState({
 			popup: {
 				tensor,
-				x: event.clientX,
+				x: event.clientX - MENU_WIDTH,
 				y: event.clientY
 			}
 		});
 	}
 
-	render() {
-		const { model } = this.props;
+	renderContent() {
+		const { block } = this.props;
 		const { popup, loading, weights, evals } = this.state;
 
 		return (
 			<>
-				<Draggable onDrag={(e, d) => console.log(d)} cancel=".cancel-drag">
-					<Wrapper>
-						<div>Name: {model.name}</div>
-						<div>Type: {model.type}</div>
+				<div>Name: {block.name}</div>
+				<div>Type: {block.type}</div>
 
-						{model.layers.map((layer, i) => (
-							<LayerBlock
-								key={layer.name}
-								layer={layer}
-								onLayerClick={(l, e) => this.handleLayerclick(l, e)}
-								onLayerTensorClick={(l, t, e) =>
-									this.handleTensorClick(l, t, e)
-								}
-							/>
-						))}
+				<Wrapper>
+					{block.layers.map((layer, i) => (
+						<LayerBlock
+							key={layer.name}
+							layer={layer}
+							onLayerClick={(l, e) => this.handleLayerclick(l, e)}
+							onLayerTensorClick={(l, t, e) => this.handleTensorClick(l, t, e)}
+						/>
+					))}
+				</Wrapper>
 
-						<div style={{ clear: 'both' }} />
-					</Wrapper>
-				</Draggable>
 				{popup && (
 					<Popup style={{ left: popup.x, top: popup.y }}>
 						{popup.layer ? (

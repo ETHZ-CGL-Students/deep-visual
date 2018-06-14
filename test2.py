@@ -3,13 +3,14 @@ import os
 import time
 import numpy as np
 import tensorflow as tf
+from threading import Thread
 
 from keras.datasets import mnist
 from keras.models import Sequential, Model, load_model
 from keras.optimizers import RMSprop
 from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten
 
-from socketio_server import expose_model, FitCallback
+from socketio_server import expose_model, expose_variables, serialize_matrix, FitCallback, sio
 
 # -- Test model #1
 # if os.path.isfile("save/model.h5"):
@@ -47,21 +48,23 @@ model.compile(
 
 model.evaluate(x_test, y_test, verbose=1)
 
-print(len(x_test))
-print(len(x_test[0]))
-
 model.summary()
 
-sio = expose_model(model)
+# Expose our model to the web
+expose_model(model)
+# Expose our local variables
+expose_variables(locals())
 
 graph = tf.get_default_graph()
 
 
+# This is called to evaluate on a tensor
 @sio.on('eval')
 def eval(layer=-1, input=True):
+    # Use 'with' to switch to the correct graph, because of threading
     with graph.as_default():
-        output = model.layers[layer].input if input == True else model.layers[
-            layer].output
+        output = model.layers[layer].input if (input == True) else (
+            model.layers[layer].output)
         nmodel = Model(inputs=[model.input], outputs=[output])
         nmodel.compile(
             loss='categorical_crossentropy',
@@ -69,12 +72,12 @@ def eval(layer=-1, input=True):
             metrics=['accuracy'])
         res = nmodel.predict(
             x=np.array([x_test[0]]), batch_size=batch_size, verbose=1)
-        return len(res).to_bytes(4, 'little') + len(res[0]).to_bytes(
-            4, 'little') + res.tostring()
+        return serialize_matrix(res)
 
 
-@sio.on('start')
-def train():
+# The function that is run to train the keras model, from a separate thread
+def run_train():
+    # Use 'with' to switch to the correct graph, because of threading
     with graph.as_default():
         model.fit(
             x_train,
@@ -87,6 +90,13 @@ def train():
         score = model.evaluate(x_test, y_test, verbose=1)
         print('Test loss:', score[0])
         print('Test accuracy:', score[1])
+
+
+# This is called to train the model
+@sio.on('start')
+def train():
+    thread = Thread(target=run_train)
+    thread.start()
 
 
 # time.sleep(30)

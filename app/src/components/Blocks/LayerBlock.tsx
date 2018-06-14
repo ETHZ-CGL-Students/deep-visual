@@ -1,7 +1,7 @@
 import * as React from 'react';
 import styled from 'styled-components';
 
-import { TensorBlock } from '.';
+import { Layer, Tensor } from '../../types';
 
 const Wrapper = styled.div`
 	position: relative;
@@ -51,19 +51,6 @@ export class LayerBlock extends React.Component<Props> {
 				<div>Type: {layer.type}</div>
 
 				<Rect onClick={e => this.handleLayerClick(e)} />
-
-				<TensorBlock
-					tensor={layer.input}
-					y={60}
-					onClick={(t, e) => this.handleTensorClick(t, e)}
-				/>
-
-				<TensorBlock
-					isOutput
-					tensor={layer.output}
-					y={60}
-					onClick={(t, e) => this.handleTensorClick(t, e)}
-				/>
 			</Wrapper>
 		);
 	}
