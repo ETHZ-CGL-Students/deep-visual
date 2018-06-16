@@ -21,6 +21,7 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 	switch (action.type) {
 		case CodeTypeKeys.LIST_REQUEST:
 			socket.emit('code', (blocks: CodeBlock[]) => {
+				console.log(blocks);
 				const data = normalize(blocks, [BlockSchema]);
 				dispatch(respondList(data.entities.blocks));
 			});

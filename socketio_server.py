@@ -165,23 +165,25 @@ def serialize_tensorshape(tensorshape):
     return {'dims': dims, 'nDims': tensorshape.ndims}
 
 
-class CodeBlock(object):
-    """ An arbitrary block of code in the editor that can be executed and connected """
+class Block(object):
+    """ An arbitrary block of something """
 
-    def __init__(self, code):
-        self.id = str(uuid.uuid4())
-        self.code = code
-        self.x = 10
-        self.y = 10
-        self.prev = []
-        self.next = []
+    def __init__(self, type, id=str(uuid.uuid4()), x=10, y=10, prev=[],
+                 nxt=[]):
+        self.id = id
+        self.type = type
+        self.locked = False
+        self.x = x
+        self.y = y
+        self.prev = prev
+        self.next = nxt
 
     def to_json(self):
         """ This is called by our custom json serializer """
 
         return {
             'id': self.id,
-            'code': self.code,
+            'type': self.type,
             'x': self.x,
             'y': self.y,
             'prev': list(map(lambda b: b.id, self.prev)),
@@ -189,10 +191,42 @@ class CodeBlock(object):
         }
 
 
+class CodeBlock(Block):
+    """ An arbitrary block of code in the editor that can be executed and connected """
+
+    def __init__(self, code, x=10, y=10, prev=[], nxt=[]):
+        super(CodeBlock, self).__init__(
+            type='Code', x=x, y=y, prev=prev, nxt=nxt)
+        self.code = code
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(CodeBlock, self).to_json()
+        json['code'] = self.code
+        return json
+
+
+class LayerBlock(Block):
+    """ An block representing a layer of a model """
+
+    def __init__(self, layer, x=10, y=10, prev=[], nxt=[]):
+        super(LayerBlock, self).__init__(
+            id=layer.name, type='Layer', x=x, y=y, prev=prev, nxt=nxt)
+        self.layer = layer
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(LayerBlock, self).to_json()
+        json['layer_type'] = type(self.layer).__name__
+        return json
+
+
 # Exposed variables
 vars = {}
 # Blocks of code
-code_blocks = []
+blocks = []
 
 
 # Socket.IO connection event
@@ -210,21 +244,21 @@ def disconnect():
 # Client requests all blocks of code
 @sio.on('code')
 def getCode():
-    return code_blocks
+    return blocks
 
 
 # Client creates a new code block
 @sio.on('code_create')
 def addCode(code):
     newBlock = CodeBlock(code)
-    code_blocks.append(newBlock)
+    blocks.append(newBlock)
     return newBlock
 
 
 # Client edits the code of a code block
 @sio.on('code_change')
 def editCode(args):
-    block = next((c for c in code_blocks if c.id == args['id']), None)
+    block = next((c for c in blocks if c.id == args['id']), None)
     if block != None:
         block.code = args['code']
     return block
@@ -233,7 +267,7 @@ def editCode(args):
 # Client changes the location of a code block
 @sio.on('code_move')
 def moveCode(args):
-    block = next((c for c in code_blocks if c.id == args['id']), None)
+    block = next((c for c in blocks if c.id == args['id']), None)
     if block != None:
         block.x = args['x']
         block.y = args['y']
@@ -243,8 +277,8 @@ def moveCode(args):
 # Client connects to code blocks together
 @sio.on('code_connect')
 def connectCode(args):
-    blockFrom = next((c for c in code_blocks if c.id == args['from']), None)
-    blockTo = next((c for c in code_blocks if c.id == args['to']), None)
+    blockFrom = next((c for c in blocks if c.id == args['from']), None)
+    blockTo = next((c for c in blocks if c.id == args['to']), None)
     if blockFrom == None or blockTo == None:
         return None
 
@@ -256,16 +290,16 @@ def connectCode(args):
 # Client deletes a code block
 @sio.on('code_delete')
 def deleteCode(args):
-    global code_blocks
-    code_blocks = [c for c in code_blocks if c.id != args['id']]
-    return code_blocks
+    global blocks
+    blocks = [c for c in blocks if c.id != args['id']]
+    return blocks
 
 
 # Client clicks 'run' on a code block
 @sio.on('code_run')
 def runCode(blockId):
     # Find the code block by id
-    block = next((c for c in code_blocks if c.id == blockId), None)
+    block = next((c for c in blocks if c.id == blockId), None)
     if block == None:
         return ['Invalid block']
 
@@ -334,6 +368,27 @@ class FitCallback(keras.callbacks.Callback):
 
 def expose_model(model):
     """ Expose a model to the web clients """
+
+    i = 0
+    for layer in model.layers:
+        blocks.append(LayerBlock(layer, x=i * 100))
+        i += 1
+    for layer in model.layers:
+        p = next((l.name for l in model.layers if l.output == layer.input),
+                 None)
+        prev = next((b for b in blocks if b.id == p), None)
+
+        n = next((l.name for l in model.layers if l.input == layer.output),
+                 None)
+        nxt = next((b for b in blocks if b.id == n), None)
+
+        for b in blocks:
+            if b.id == layer.name:
+                if prev is not None:
+                    b.prev = [prev]
+                if nxt is not None:
+                    b.next = [nxt]
+                break
 
     @sio.on('model')
     def getModel():

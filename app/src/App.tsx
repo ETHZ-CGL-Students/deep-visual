@@ -12,7 +12,7 @@ import {
 	requestList,
 	requestMove
 } from './actions/code';
-import { CodeBlockComp } from './components/Blocks';
+import { CodeBlockComp, ModelBlock } from './components/Blocks';
 import { getCodeBlocks } from './selectors/code';
 import { socket } from './services/socket';
 import { AppState, CodeBlock, Model, Variable } from './types';
@@ -187,7 +187,7 @@ class App extends React.Component<Props, OwnState> {
 
 	render() {
 		const { blocks } = this.props;
-		const { vars } = this.state;
+		const { vars, model } = this.state;
 
 		return (
 			<Wrapper>
@@ -215,6 +215,7 @@ class App extends React.Component<Props, OwnState> {
 					</VarMenu>
 				</Menu>
 				<Content>
+					{model && <ModelBlock trackDrag={false} block={model} />}
 					{blocks.map(b => (
 						<CodeBlockComp
 							key={b.id}
@@ -231,7 +232,6 @@ class App extends React.Component<Props, OwnState> {
 		);
 	}
 }
-// {model && <ModelBlock trackDrag={false} block={model} />}
 
 const mapStateToProps = (state: AppState) => {
 	return {
