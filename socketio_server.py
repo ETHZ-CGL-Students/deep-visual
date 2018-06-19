@@ -11,7 +11,9 @@ import contextlib
 import pickle
 import traceback as tb
 import numpy as np
+import tensorflow as tf
 
+from abc import ABCMeta, abstractmethod
 from types import ModuleType
 from threading import Thread
 from flask import Flask
@@ -68,16 +70,19 @@ def stdoutIO(stdout=None):
 def serialize(data):
     """ Custom serialization function to serialize any variable to json """
 
-    if isinstance(data, str):
+    if isinstance(data, (str, int, float, bytes, bytearray)):
         return data
-    if isinstance(data, (int, float)):
-        return data
-    if isinstance(data, keras.Model):
+    elif isinstance(data, keras.Model):
         return serialize_model(data)
+    elif isinstance(data, tf.Tensor):
+        return serialize_tensor(data)
     elif isinstance(data, np.ndarray):
         return serialize_matrix(data)
     elif isinstance(data, list):
         return list(map(serialize, data))
+    elif isinstance(data, dict):
+        return {k: serialize(v) for k, v in data.items()}
+    print(data)
     return None
 
 
@@ -165,7 +170,7 @@ def serialize_tensorshape(tensorshape):
     return {'dims': dims, 'nDims': tensorshape.ndims}
 
 
-class Block(object):
+class Block(metaclass=ABCMeta):
     """ An arbitrary block of something """
 
     def __init__(self, type, id=None, x=10, y=10, prev=None, nxt=None):
@@ -189,6 +194,12 @@ class Block(object):
             'next': list(map(lambda b: b.id, self.next))
         }
 
+    @abstractmethod
+    def eval(self, gs, ls, input):
+        """ Evaluate this block using the given input, returning
+        printed text and result in an array: [print, result]"""
+        return
+
 
 class CodeBlock(Block):
     """ An arbitrary block of code in the editor that can be executed and connected """
@@ -205,6 +216,28 @@ class CodeBlock(Block):
         json['code'] = self.code
         return json
 
+    def eval(self, gs, ls, input):
+        out = None
+
+        # Set the input as a local variable so we can use it in the block
+        ls['input'] = input
+
+        # Run our custom code
+        exec(self.code, gs, ls)
+
+        # Save the output of our cusotm code, so that we can return it
+        out = ls.pop('out', None)
+
+        # Clear the input we set
+        ls.pop('input')
+
+        # If our block had output, then it will be in the 'out' variable
+        if out is not None:
+            out = serialize(out)
+
+        # Return our results
+        return out
+
 
 class LayerBlock(Block):
     """ An block representing a layer of a model """
@@ -220,6 +253,9 @@ class LayerBlock(Block):
         json = super(LayerBlock, self).to_json()
         json['layerType'] = type(self.layer).__name__
         return json
+
+    def eval(self, gs, ls, input):
+        return self.layer.output
 
 
 # Exposed variables
@@ -283,7 +319,7 @@ def connectCode(args):
 
     blockFrom.next.append(blockTo)
     blockTo.prev.append(blockFrom)
-    sio.emit('block_connect', data=[blockFrom, blockTo])
+    sio.emit('block_connect', data=[blockFrom.to_json(), blockTo.to_json()])
 
 
 # Client deletes a code block
@@ -306,48 +342,53 @@ def runCode(args):
     if block is None:
         return ['Invalid block']
 
-    # Save our globals - they will be exposed to the 'exec' function
+    # Build our execution tree
+    bs = [block]
+    todo = [block]
+    while len(todo) > 0:
+        b = todo.pop()
+        bs.extend(b.prev)
+        todo.extend(b.prev)
+
+    bs.reverse()
+    outs = {}
+
+    # Save our globals, they will be exposed to the block eval...
     gs = globals()
 
-    # TODO: Properly create our AST
-    # Currently this only goes back one 'path', so a block
-    # with more than one input doesn't work
-    bs = [block]
-    first = block
-    while len(first.prev) > 0:
-        print(first.to_json())
-        first = first.prev[0]
-        bs.insert(0, first)
+    # ...and use our exposed variables as the local variables inside the block eval
+    ls = vars
 
     try:
-        out = None
-        # This captures any print and output statements
-        with stdoutIO() as s:
-            # Traverse the blocks
-            for b in bs:
-                # Set our 'locals' available inside the block to the exposed variables
-                ls = vars
-                # Set the block's input value equal to the last block's output value
-                ls['input'] = out
-                # Run our custom code
-                exec(b.code, gs, ls)
-                # Save the output of our cusotm code, so the next block can use it as the input
-                out = ls.pop('out', None)
+        # Traverse the blocks
+        for b in bs:
+            input = []
 
-        res = None
-        # If our last block had output, then it will be in the out variable
-        if out is not None:
-            res = serialize(out)
+            # Get inputs from previous blocks
+            for p in b.prev:
+                input.append(outs[p.id])
+
+            # Run the function
+            out = b.eval(gs, ls, input)
+
+            # Save the output of our execution
+            outs[b.id] = out
+
+        # Get the output for the block we ran the eval socket.io event
+        res = outs[block.id]
+        if res is not None:
+            res = serialize(res)
 
         # Return our results to the client
-        return [None, [s.getvalue(), res]]
+        return [None, res]
     except:
         # Return the error to the client
-        return [tb.format_exc(), []]
+        return [tb.format_exc(), None]
 
 
 class FitCallback(keras.callbacks.Callback):
-    """ Callback used inside the 'fit' method of keras, to update our client with progress on the training """
+    """ Callback used inside the 'fit' method of keras, to 
+    update our client with progress on the training """
     last_time = 0
 
     def set_params(self, params):
@@ -375,7 +416,7 @@ def expose_model(model):
     # Add all layers as blocks
     i = 0
     for layer in model.layers:
-        blocks.append(LayerBlock(layer, x=i * 100))
+        blocks.append(LayerBlock(layer, x=i * 200))
         i += 1
     # Link the layers 'prev' and 'next'
     for layer in model.layers:
@@ -394,18 +435,6 @@ def expose_model(model):
                 if nxt is not None:
                     b.next = [nxt]
                 break
-
-    # @sio.on('model')
-    # def getModel():
-    #     return serialize_model(model)
-
-    # @sio.on('layer')
-    # def getLayer(layer_name=None):
-    #     layer = model.get_layer(name=layer_name)
-    #     weights = layer.get_weights()
-    #     if len(weights) <= 0:
-    #         return None
-    #     return serialize_matrix(weights[0])
 
 
 def expose_variables(newVars):
@@ -428,7 +457,8 @@ def expose_variables(newVars):
 
 
 def start():
-    """ Start our webserver and return the socket.io client to which we can attach our own events """
+    """ Start our webserver and return the socket.io 
+    client to which we can attach our own events """
 
     def thread_run():
         sio.run(app, port=8080)

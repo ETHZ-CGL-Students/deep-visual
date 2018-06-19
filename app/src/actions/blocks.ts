@@ -174,12 +174,20 @@ export function requestEval(block: CodeBlock): EvalRequestAction {
 
 export interface EvalResponseAction extends Action {
 	type: TypeKeys.EVAL_RESPONSE;
-	data: any;
+	block: CodeBlock;
+	error: string;
+	out: any;
 }
-export function respondEval(data: any): EvalResponseAction {
+export function respondEval(
+	block: CodeBlock,
+	error: string,
+	out: any
+): EvalResponseAction {
 	return {
 		type: TypeKeys.EVAL_RESPONSE,
-		data
+		block,
+		error,
+		out
 	};
 }
 

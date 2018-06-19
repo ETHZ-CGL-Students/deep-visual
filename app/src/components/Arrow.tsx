@@ -2,7 +2,15 @@ import * as React from 'react';
 
 type Vector2 = { x: number; y: number };
 
-export const Arrow = ({ from, to }: { from: Vector2; to: Vector2 }) => {
+export const Arrow = ({
+	id,
+	from,
+	to
+}: {
+	id: number;
+	from: Vector2;
+	to: Vector2;
+}) => {
 	const dy = to.y - from.y;
 	const dx = to.x - from.x;
 
@@ -19,21 +27,30 @@ export const Arrow = ({ from, to }: { from: Vector2; to: Vector2 }) => {
 		height: 0
 	};
 
+	const labelStyle: React.CSSProperties = {
+		position: 'absolute',
+		left: from.x + dx / 2,
+		top: from.y + dy / 2
+	};
+
 	return (
-		<div style={style}>
-			<div style={{ background: 'green', height: 4, marginRight: 20 }} />
-			<div
-				style={{
-					width: 0,
-					height: 0,
-					marginRight: 6,
-					marginTop: -17,
-					borderTop: '14px solid transparent',
-					borderBottom: '14px solid transparent',
-					borderLeft: '22px solid green',
-					float: 'right'
-				}}
-			/>
-		</div>
+		<>
+			<div style={labelStyle}>{id}</div>
+			<div style={style}>
+				<div style={{ background: 'green', height: 4, marginRight: 20 }} />
+				<div
+					style={{
+						width: 0,
+						height: 0,
+						marginRight: 6,
+						marginTop: -17,
+						borderTop: '14px solid transparent',
+						borderBottom: '14px solid transparent',
+						borderLeft: '22px solid green',
+						float: 'right'
+					}}
+				/>
+			</div>
+		</>
 	);
 };

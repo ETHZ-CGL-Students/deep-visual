@@ -24,6 +24,17 @@ export default (state = initialState, action: AppAction): BlocksState => {
 				blocks: merge({}, state.blocks, action.blocks)
 			};
 
+		case TypeKeys.EVAL_RESPONSE:
+			return {
+				...state,
+				blocks: merge({}, state.blocks, {
+					[action.block.id]: {
+						error: action.error,
+						out: action.out
+					}
+				})
+			};
+
 		default:
 			return state;
 	}

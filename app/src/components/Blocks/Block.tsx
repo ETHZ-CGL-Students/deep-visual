@@ -13,6 +13,11 @@ const Wrapper = styled.div`
 	background-color: lightgrey;
 	box-sizing: border-box;
 	border: 1px solid black;
+	max-width: 600px;
+`;
+
+const Output = styled.div`
+	word-break: break-all;
 `;
 
 export interface BlockProps {
@@ -56,6 +61,12 @@ export abstract class BlockComp<
 				}}
 			>
 				<Wrapper innerRef={this.ref}>
+					<div>{block.id}</div>
+					<Output style={{ color: 'red' }}>{block.error}</Output>
+					<Output style={{ color: 'green' }}>
+						{JSON.stringify(block.out)}
+					</Output>
+
 					{this.renderContent()}
 					{this.renderLines()}
 
@@ -94,15 +105,16 @@ export abstract class BlockComp<
 
 		return (
 			<>
-				{this.props.block.next.map(b => {
-					const toX = b.x - block.x;
-					const toY = b.y - block.y + h / 2;
+				{this.props.block.prev.map((b, i) => {
+					const fromX = b.x - block.x + w;
+					const fromY = b.y - block.y + h / 2;
 
 					return (
 						<Arrow
 							key={b.id}
-							from={{ x: w, y: h / 2 }}
-							to={{ x: toX, y: toY }}
+							id={i}
+							from={{ x: fromX, y: fromY }}
+							to={{ x: 0, y: h / 2 }}
 						/>
 					);
 				})}

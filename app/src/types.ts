@@ -10,6 +10,8 @@ export interface Block {
 	y: number;
 	prev: Block[];
 	next: Block[];
+	error: string;
+	out: any;
 }
 
 export interface LayerBlock extends Block {

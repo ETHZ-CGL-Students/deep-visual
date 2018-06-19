@@ -5,6 +5,7 @@
   "proxy": "http://localhost:8888/",
   "dependencies": {
     "codemirror": "5.38.0",
+    "jsplumb": "^2.7.5",
     "lodash.merge": "4.6.1",
     "normalizr": "3.2.4",
     "react": "16.4.0",

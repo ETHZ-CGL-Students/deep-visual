@@ -7,6 +7,7 @@ import {
 	respondChange,
 	respondConnect,
 	respondCreate,
+	respondEval,
 	respondList,
 	respondMove,
 	TypeKeys as BlockTypeKeys
@@ -22,6 +23,7 @@ import {
 	respondVariables,
 	TypeKeys as VariablesTypeKeys
 } from '../actions/variables';
+import { readMatrixFromBuffer } from '../components/Util';
 import { store } from '../store';
 import { AppState, Block, BlockSchema, CodeBlock, Variable } from '../types';
 
@@ -96,10 +98,14 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 			socket.emit(
 				'block_eval',
 				{ id: action.block.id },
-				([err, [output, res]]: [string, [string, string]]) => {
+				([err, out]: [string, any]) => {
 					console.log(err);
-					console.log(output);
+					let res = out;
+					if (out instanceof ArrayBuffer) {
+						res = readMatrixFromBuffer(out);
+					}
 					console.log(res);
+					dispatch(respondEval(action.block, err, res));
 				}
 			);
 			break;
