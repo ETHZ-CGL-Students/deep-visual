@@ -14,7 +14,7 @@ const Dot = styled.div`
 `;
 
 interface Props {
-	y: number;
+	y: number | string;
 	isOutput?: boolean;
 	id: string;
 	onClick?: (id: String) => void;
@@ -77,8 +77,8 @@ export class Connector extends React.Component<Props, OwnState> {
 			<Wrapper
 				className="cancel-drag"
 				style={{
-					left: isOutput ? undefined : -20,
-					right: isOutput ? -20 : undefined,
+					left: isOutput ? undefined : -10,
+					right: isOutput ? -10 : undefined,
 					top: y
 				}}
 			>

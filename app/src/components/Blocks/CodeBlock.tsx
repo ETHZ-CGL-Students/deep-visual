@@ -3,17 +3,13 @@ import 'codemirror/mode/python/python';
 import * as React from 'react';
 import * as CodeMirror from 'react-codemirror';
 
-import { socket } from '../../services/socket';
 import { CodeBlock } from '../../types';
-import { Connector } from '../Connector';
 
 import { BlockComp, BlockProps } from '.';
 
 interface Props extends BlockProps {
 	block: CodeBlock;
-	onDelete: () => void;
-	onChange: (code: string) => void;
-	onConnect: (from: string, to: string) => void;
+	onEval: (block: CodeBlock) => void;
 }
 
 interface OwnState {
@@ -33,20 +29,7 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 	}
 
 	run() {
-		console.log(this.props.block.code);
-		socket.emit(
-			'code_run',
-			this.props.block.id,
-			([err, [out, res]]: [string, any]) => {
-				console.log(out);
-				console.log(res);
-				this.setState({
-					error: err,
-					out,
-					response: res
-				});
-			}
-		);
+		this.props.onEval(this.props.block);
 	}
 
 	toggle() {
@@ -55,8 +38,20 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 		});
 	}
 
+	onChange(code: string) {
+		if (this.props.onChange) {
+			this.props.onChange(code);
+		}
+	}
+
+	onDelete() {
+		if (this.props.onDelete) {
+			this.props.onDelete();
+		}
+	}
+
 	renderContent() {
-		const { block, onChange, onDelete } = this.props;
+		const { block } = this.props;
 		const { show, error, out, response } = this.state;
 
 		return (
@@ -66,24 +61,10 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 			>
 				<div style={{ display: 'flex', marginBottom: '1em' }}>
 					<button style={{ flex: 1 }} onClick={() => this.toggle()}>
-						{show ? 'Hide' : 'Toggle'}
+						{show ? 'Hide' : 'Show'}
 					</button>
-					<button onClick={() => onDelete()}>X</button>
+					<button onClick={() => this.onDelete()}>X</button>
 				</div>
-
-				{this.renderLines()}
-
-				<Connector
-					y={60}
-					id={block.id}
-					onConnect={(f, t) => this.props.onConnect(f, t)}
-				/>
-				<Connector
-					isOutput
-					y={60}
-					id={block.id}
-					onConnect={(f, t) => this.props.onConnect(f, t)}
-				/>
 
 				<div
 					style={{
@@ -93,7 +74,7 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 				>
 					<CodeMirror
 						value={block.code}
-						onChange={c => onChange(c)}
+						onChange={c => this.onChange(c)}
 						options={{ mode: 'python' }}
 					/>
 
@@ -109,53 +90,6 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 					Run
 				</button>
 			</div>
-		);
-	}
-
-	renderLines() {
-		const block = this.props.block;
-		const x = 300;
-		const y = 22;
-
-		return (
-			<>
-				{this.props.block.next.map(b => {
-					const toX = b.x - block.x - 20;
-					const toY = b.y - block.y + 22;
-
-					const len = Math.sqrt(Math.pow(x - toX, 2) + Math.pow(y - toY, 2));
-					const angle = Math.atan((toY - y) / (toX - x));
-					const transX = x - 0.5 * len * (1 - Math.cos(angle));
-					const transY = y + 0.5 * len * Math.sin(angle);
-
-					const style: React.CSSProperties = {
-						position: 'absolute',
-						transform: `translate(${transX}px, ${transY}px) rotate(${angle}rad)`,
-						width: `${len}px`,
-						height: `${0}px`
-					};
-
-					return (
-						<div key={b.id} style={style}>
-							<div
-								style={{ background: 'green', height: 5, marginRight: 20 }}
-							/>
-							<div
-								style={{
-									width: 0,
-									height: 0,
-									marginRight: 6,
-									marginTop: -17,
-									borderTop: '14px solid transparent',
-									borderBottom: '14px solid transparent',
-									borderLeft: '22px solid green',
-									float: 'right'
-								}}
-							/>
-						</div>
-					);
-				})}
-			</>
 		);
 	}
 }

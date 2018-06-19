@@ -1,5 +1,6 @@
 import { normalize } from 'normalizr';
 import { Dispatch, MiddlewareAPI } from 'redux';
+import * as openSocket from 'socket.io-client';
 
 import { AppAction } from '../actions';
 import {
@@ -8,10 +9,51 @@ import {
 	respondCreate,
 	respondList,
 	respondMove,
-	TypeKeys as CodeTypeKeys
-} from '../actions/code';
-import { socket } from '../services/socket';
-import { AppState, BlockSchema, CodeBlock } from '../types';
+	TypeKeys as BlockTypeKeys
+} from '../actions/blocks';
+import {
+	beginBatch,
+	beginEpoch,
+	beginTrain,
+	endTrain,
+	setTrainParams
+} from '../actions/train';
+import {
+	respondVariables,
+	TypeKeys as VariablesTypeKeys
+} from '../actions/variables';
+import { store } from '../store';
+import { AppState, Block, BlockSchema, CodeBlock, Variable } from '../types';
+
+const socket = openSocket('http://localhost:8080');
+
+// Subscribe to events
+socket.on('set_params', (data: any) =>
+	store.dispatch(
+		setTrainParams(data.epochs, Math.ceil(data.samples / data.batch_size))
+	)
+);
+socket.on('train_begin', () => store.dispatch(beginTrain()));
+socket.on('train_end', () => store.dispatch(endTrain()));
+socket.on('epoch_begin', (epoch: number) => store.dispatch(beginEpoch(epoch)));
+socket.on('batch_begin', (batch: number) => store.dispatch(beginBatch(batch)));
+
+socket.on('block_create', (block: Block) => {
+	const data = normalize(block, BlockSchema);
+	store.dispatch(respondCreate(data.entities.blocks));
+});
+socket.on('block_change', (block: Block) => {
+	const data = normalize(block, BlockSchema);
+	store.dispatch(respondChange(data.entities.blocks));
+});
+socket.on('block_move', (block: Block) => {
+	const data = normalize(block, BlockSchema);
+	store.dispatch(respondMove(data.entities.blocks));
+});
+socket.on('block_connect', (blocks: Block[]) => {
+	const data = normalize(blocks, [BlockSchema]);
+	store.dispatch(respondConnect(data.entities.blocks));
+});
 
 export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 	next: Dispatch<AppAction>
@@ -19,56 +61,51 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 	next(action);
 
 	switch (action.type) {
-		case CodeTypeKeys.LIST_REQUEST:
-			socket.emit('code', (blocks: CodeBlock[]) => {
+		case VariablesTypeKeys.REQUEST_VARIABLES:
+			socket.emit('variables', (vars: Variable[]) => {
+				console.log(vars);
+				dispatch(respondVariables(vars));
+			});
+			break;
+
+		case BlockTypeKeys.LIST_REQUEST:
+			socket.emit('block_list', (blocks: CodeBlock[]) => {
 				console.log(blocks);
 				const data = normalize(blocks, [BlockSchema]);
 				dispatch(respondList(data.entities.blocks));
 			});
 			break;
 
-		case CodeTypeKeys.CREATE_REQUEST:
-			socket.emit('code_create', action.code, (block: CodeBlock) => {
-				const data = normalize(block, BlockSchema);
-				dispatch(respondCreate(data.entities.blocks));
-			});
+		case BlockTypeKeys.CREATE_REQUEST:
+			socket.emit('block_create', { code: action.code });
 			break;
 
-		case CodeTypeKeys.CHANGE_REQUEST:
+		case BlockTypeKeys.CHANGE_REQUEST:
+			socket.emit('block_change', { id: action.id, code: action.code });
+			break;
+
+		case BlockTypeKeys.MOVE_REQUEST:
+			socket.emit('block_move', { id: action.id, x: action.x, y: action.y });
+			break;
+
+		case BlockTypeKeys.CONNECT_REQUEST:
+			socket.emit('block_connect', { from: action.from, to: action.to });
+			break;
+
+		case BlockTypeKeys.EVAL_REQUEST:
 			socket.emit(
-				'code_change',
-				{ id: action.id, code: action.code },
-				(block: CodeBlock) => {
-					const data = normalize(block, BlockSchema);
-					dispatch(respondChange(data.entities.blocks));
+				'block_eval',
+				{ id: action.block.id },
+				([err, [output, res]]: [string, [string, string]]) => {
+					console.log(err);
+					console.log(output);
+					console.log(res);
 				}
 			);
 			break;
 
-		case CodeTypeKeys.MOVE_REQUEST:
-			socket.emit(
-				'code_move',
-				{ id: action.id, x: action.x, y: action.y },
-				(block: CodeBlock) => {
-					const data = normalize(block, BlockSchema);
-					dispatch(respondMove(data.entities.blocks));
-				}
-			);
-			break;
-
-		case CodeTypeKeys.CONNECT_REQUEST:
-			socket.emit(
-				'code_connect',
-				{ from: action.from, to: action.to },
-				(block: CodeBlock) => {
-					const data = normalize(block, [BlockSchema]);
-					dispatch(respondConnect(data.entities.blocks));
-				}
-			);
-			break;
-
-		case CodeTypeKeys.DELETE_REQUEST:
-			socket.emit('code_delete', { id: action.id }, (block: CodeBlock) => {
+		case BlockTypeKeys.DELETE_REQUEST:
+			socket.emit('block_delete', { id: action.id }, (block: CodeBlock) => {
 				// TODO: Process deletion
 			});
 			break;

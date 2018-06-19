@@ -1,57 +1,22 @@
 import * as React from 'react';
-import styled from 'styled-components';
 
-import { Layer, Tensor } from '../../types';
+import { LayerBlock } from '../../types';
 
-const Wrapper = styled.div`
-	position: relative;
-	display: inline-block;
-	width: 140px;
-	height: 120px;
-	margin: 10px;
-	padding: 10px;
-	background-color: orange;
-	box-sizing: border-box;
-`;
+import { BlockComp, BlockProps } from './Block';
 
-const Rect = styled.div`
-	position: absolute;
-	left: 60px;
-	bottom: 10px;
-	width: 20px;
-	height: 20px;
-	background-color: black;
-`;
-
-interface Props {
-	layer: Layer;
-	onLayerClick: (layer: Layer, event: React.MouseEvent<HTMLElement>) => void;
-	onLayerTensorClick: (
-		layer: Layer,
-		tensor: Tensor,
-		event: React.MouseEvent<HTMLElement>
-	) => void;
+interface Props extends BlockProps {
+	block: LayerBlock;
 }
 
-export class LayerBlock extends React.Component<Props> {
-	handleLayerClick(event: React.MouseEvent<HTMLElement>) {
-		this.props.onLayerClick(this.props.layer, event);
-	}
-
-	handleTensorClick(tensor: Tensor, event: React.MouseEvent<HTMLElement>) {
-		this.props.onLayerTensorClick(this.props.layer, tensor, event);
-	}
-
-	render() {
-		const { layer } = this.props;
+export class LayerBlockComp extends BlockComp<Props> {
+	renderContent() {
+		const { block } = this.props;
 
 		return (
-			<Wrapper>
-				<div>Name: {layer.name}</div>
-				<div>Type: {layer.type}</div>
-
-				<Rect onClick={e => this.handleLayerClick(e)} />
-			</Wrapper>
+			<>
+				<div>Name: {block.id}</div>
+				<div>Type: {block.layerType}</div>
+			</>
 		);
 	}
 }

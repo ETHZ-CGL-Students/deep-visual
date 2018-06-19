@@ -9,13 +9,16 @@ import {
 	requestConnect,
 	requestCreate,
 	requestDelete,
+	requestEval,
 	requestList,
 	requestMove
-} from './actions/code';
-import { CodeBlockComp, ModelBlock } from './components/Blocks';
-import { getCodeBlocks } from './selectors/code';
-import { socket } from './services/socket';
-import { AppState, CodeBlock, Model, Variable } from './types';
+} from './actions/blocks';
+import { startTrain } from './actions/train';
+import { requestVariables } from './actions/variables';
+import { CodeBlockComp, LayerBlockComp } from './components/Blocks';
+import { getBlocks } from './selectors/blocks';
+import { getVariables } from './selectors/variables';
+import { AppState, Block, CodeBlock, isCode, isLayer, Variable } from './types';
 
 const Wrapper = styled.div`
 	display: flex;
@@ -74,13 +77,17 @@ const Content = styled.div`
 `;
 
 interface Props {
-	blocks: CodeBlock[];
+	blocks: Block[];
+	vars: Variable[];
+	requestVariables: () => AppAction;
 	requestList: () => AppAction;
 	requestCreate: (code: string) => AppAction;
 	requestChange: (id: string, code: string) => AppAction;
 	requestMove: (id: string, x: number, y: number) => AppAction;
 	requestConnect: (from: string, to: string) => AppAction;
 	requestDelete: (id: string) => AppAction;
+	requestEval: (b: CodeBlock) => AppAction;
+	startTraining: () => AppAction;
 }
 
 interface OwnState {
@@ -88,8 +95,6 @@ interface OwnState {
 	epoch: number;
 	batches: number;
 	batch: number;
-	model: Model | undefined;
-	vars: Variable[];
 }
 
 class App extends React.Component<Props, OwnState> {
@@ -100,35 +105,22 @@ class App extends React.Component<Props, OwnState> {
 			epochs: 0,
 			epoch: 0,
 			batches: 0,
-			batch: 0,
-			model: undefined,
-			vars: []
+			batch: 0
 		};
 	}
 
 	componentDidMount() {
 		// window.addEventListener('keyup', e => this.handleKeyUp(e), false);
-		socket.emit('model', (model: Model) => {
-			console.log(model);
-			this.setState({ model });
-		});
-		socket.emit('variables', (vars: Variable[]) => {
-			console.log(vars);
-			this.setState({ vars });
-		});
+		// this.props.requestModel();
+		this.props.requestVariables();
 		this.props.requestList();
-		socket.on('set_params', (data: any) => this.set_params(data));
-		socket.on('train_begin', () => this.train_begin());
-		socket.on('train_end', () => this.train_end());
-		socket.on('epoch_begin', (epoch: number) => this.epoch_begin(epoch));
-		socket.on('batch_begin', (batch: number) => this.batch_begin(batch));
 	}
 
 	addCodeBlock(code: string = '') {
 		this.props.requestCreate(code);
 	}
 
-	dragCodeBlock(block: CodeBlock, data: DraggableData) {
+	dragBlock(block: Block, data: DraggableData) {
 		this.props.requestMove(block.id, data.x, data.y);
 	}
 
@@ -142,52 +134,24 @@ class App extends React.Component<Props, OwnState> {
 		}
 	}
 
-	connectCodeBlock(from: string, to: string) {
+	connectBlocks(from: string, to: string) {
 		this.props.requestConnect(from, to);
 	}
 
 	componentWillUnmount() {
 		// window.removeEventListener('keyup', e => this.handleKeyUp(e), false);
-		socket.off('set_params');
-		socket.off('train_begin');
-		socket.off('train_end');
-		socket.off('epoch_begin');
-		socket.off('batch_begin');
-	}
-
-	set_params(data: any) {
-		this.setState({
-			epochs: data.epochs,
-			batches: Math.ceil(data.samples / data.batch_size)
-		});
 	}
 
 	start() {
-		socket.emit('start');
+		this.props.startTraining();
 	}
 
-	train_begin() {
-		console.log('Starting...');
-	}
-
-	train_end() {
-		this.setState({
-			epoch: this.state.epochs,
-			batch: this.state.batches
-		});
-	}
-
-	epoch_begin(epoch: number) {
-		this.setState({ epoch, batch: 0 });
-	}
-
-	batch_begin(batch: number) {
-		this.setState({ batch });
+	eval(block: CodeBlock) {
+		this.props.requestEval(block);
 	}
 
 	render() {
-		const { blocks } = this.props;
-		const { vars, model } = this.state;
+		const { blocks, vars } = this.props;
 
 		return (
 			<Wrapper>
@@ -214,33 +178,50 @@ class App extends React.Component<Props, OwnState> {
 						))}
 					</VarMenu>
 				</Menu>
-				<Content>
-					{model && <ModelBlock trackDrag={false} block={model} />}
-					{blocks.map(b => (
-						<CodeBlockComp
-							key={b.id}
-							trackDrag
-							onChange={c => this.changeCodeBlock(b, c)}
-							onDrag={d => this.dragCodeBlock(b, d)}
-							onDelete={() => this.deleteCodeBlock(b)}
-							onConnect={(f, t) => this.connectCodeBlock(f, t)}
-							block={b}
-						/>
-					))}
-				</Content>
+				<Content>{blocks.map(b => this.renderBlock(b))}</Content>
 			</Wrapper>
 		);
+	}
+
+	renderBlock(b: Block) {
+		if (isLayer(b)) {
+			return (
+				<LayerBlockComp
+					key={b.id}
+					trackDrag
+					onDrag={d => this.dragBlock(b, d)}
+					onConnect={(f, t) => this.connectBlocks(f, t)}
+					block={b}
+				/>
+			);
+		} else if (isCode(b)) {
+			return (
+				<CodeBlockComp
+					key={b.id}
+					trackDrag
+					onChange={c => this.changeCodeBlock(b, c)}
+					onDrag={d => this.dragBlock(b, d)}
+					onDelete={() => this.deleteCodeBlock(b)}
+					onConnect={(f, t) => this.connectBlocks(f, t)}
+					onEval={bl => this.eval(bl)}
+					block={b}
+				/>
+			);
+		}
+		return null;
 	}
 }
 
 const mapStateToProps = (state: AppState) => {
 	return {
-		blocks: getCodeBlocks(state)
+		blocks: getBlocks(state),
+		vars: getVariables(state)
 	};
 };
 
 const mapDispatchToProps = (dispatch: Dispatch<AppAction>) => {
 	return {
+		requestVariables: (): AppAction => dispatch(requestVariables()),
 		requestList: (): AppAction => dispatch(requestList()),
 		requestCreate: (code: string): AppAction => dispatch(requestCreate(code)),
 		requestChange: (id: string, code: string): AppAction =>
@@ -249,7 +230,9 @@ const mapDispatchToProps = (dispatch: Dispatch<AppAction>) => {
 			dispatch(requestMove(id, x, y)),
 		requestConnect: (from: string, to: string): AppAction =>
 			dispatch(requestConnect(from, to)),
-		requestDelete: (id: string): AppAction => dispatch(requestDelete(id))
+		requestDelete: (id: string): AppAction => dispatch(requestDelete(id)),
+		requestEval: (b: CodeBlock): AppAction => dispatch(requestEval(b)),
+		startTraining: (): AppAction => dispatch(startTrain())
 	};
 };
 

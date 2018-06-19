@@ -1,20 +1,22 @@
 import { Action } from 'redux';
 
-import { CodeBlock } from '../types';
+import { Block, CodeBlock } from '../types';
 
 export enum TypeKeys {
-	LIST_REQUEST = 'CB_LIST_REQUEST',
-	LIST_RESPONSE = 'CB_LIST_RESPONSE',
-	CREATE_REQUEST = 'CB_CREATE_REQUEST',
-	CREATE_RESPONSE = 'CB_CREATE_RESPONSE',
-	CHANGE_REQUEST = 'CB_CHANGE_REQUEST',
-	CHANGE_RESPONSE = 'CB_CHANGE_RESPONSE',
-	MOVE_REQUEST = 'CB_MOVE_REQUEST',
-	MOVE_RESPONSE = 'CB_MOVE_RESPONSE',
-	CONNECT_REQUEST = 'CB_CONNECT_REQUEST',
-	CONNECT_RESPONSE = 'CB_CONNECT_RESPONSE',
-	DELETE_REQUEST = 'CB_DELETE_REQUEST',
-	DELETE_RESPONSE = 'CB_DELETE_RESPONSE'
+	LIST_REQUEST = 'BLOCKS_LIST_REQUEST',
+	LIST_RESPONSE = 'BLOCKS_LIST_RESPONSE',
+	CREATE_REQUEST = 'BLOCKS_CREATE_REQUEST',
+	CREATE_RESPONSE = 'BLOCKS_CREATE_RESPONSE',
+	CHANGE_REQUEST = 'BLOCKS_CHANGE_REQUEST',
+	CHANGE_RESPONSE = 'BLOCKS_CHANGE_RESPONSE',
+	MOVE_REQUEST = 'BLOCKS_MOVE_REQUEST',
+	MOVE_RESPONSE = 'BLOCKS_MOVE_RESPONSE',
+	CONNECT_REQUEST = 'BLOCKS_CONNECT_REQUEST',
+	CONNECT_RESPONSE = 'BLOCKS_CONNECT_RESPONSE',
+	DELETE_REQUEST = 'BLOCKS_DELETE_REQUEST',
+	DELETE_RESPONSE = 'BLOCKS_DELETE_RESPONSE',
+	EVAL_REQUEST = 'BLOCKS_EVAL_REQUEST',
+	EVAL_RESPONSE = 'BLOCKS_EVAL_RESPONSE'
 }
 
 export interface ListRequestAction extends Action {
@@ -28,7 +30,7 @@ export function requestList(): ListRequestAction {
 
 export interface ListResponseAction extends Action {
 	type: TypeKeys.LIST_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondList(blocks: any): ListResponseAction {
 	return {
@@ -50,7 +52,7 @@ export function requestCreate(code: string): CreateRequestAction {
 
 export interface CreateResponseAction extends Action {
 	type: TypeKeys.CREATE_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondCreate(blocks: any): CreateResponseAction {
 	return {
@@ -74,7 +76,7 @@ export function requestChange(id: string, code: string): ChangeRequestAction {
 
 export interface ChangeResponseAction extends Action {
 	type: TypeKeys.CHANGE_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondChange(blocks: any): ChangeResponseAction {
 	return {
@@ -104,7 +106,7 @@ export function requestMove(
 
 export interface MoveResponseAction extends Action {
 	type: TypeKeys.MOVE_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondMove(blocks: any): MoveResponseAction {
 	return {
@@ -126,7 +128,7 @@ export function requestDelete(id: string): DeleteRequestAction {
 
 export interface DeleteResponseAction extends Action {
 	type: TypeKeys.DELETE_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondDelete(blocks: any): DeleteResponseAction {
 	return {
@@ -150,7 +152,7 @@ export function requestConnect(from: string, to: string): ConnectRequestAction {
 
 export interface ConnectResponseAction extends Action {
 	type: TypeKeys.CONNECT_RESPONSE;
-	blocks: { [x: string]: CodeBlock };
+	blocks: { [x: string]: Block };
 }
 export function respondConnect(blocks: any): ConnectResponseAction {
 	return {
@@ -159,8 +161,30 @@ export function respondConnect(blocks: any): ConnectResponseAction {
 	};
 }
 
+export interface EvalRequestAction extends Action {
+	type: TypeKeys.EVAL_REQUEST;
+	block: CodeBlock;
+}
+export function requestEval(block: CodeBlock): EvalRequestAction {
+	return {
+		type: TypeKeys.EVAL_REQUEST,
+		block
+	};
+}
+
+export interface EvalResponseAction extends Action {
+	type: TypeKeys.EVAL_RESPONSE;
+	data: any;
+}
+export function respondEval(data: any): EvalResponseAction {
+	return {
+		type: TypeKeys.EVAL_RESPONSE,
+		data
+	};
+}
+
 // Merge all actions
-export type CodeAction =
+export type BlockAction =
 	| ListRequestAction
 	| ListResponseAction
 	| CreateRequestAction
@@ -172,4 +196,6 @@ export type CodeAction =
 	| ConnectRequestAction
 	| ConnectResponseAction
 	| DeleteRequestAction
-	| DeleteResponseAction;
+	| DeleteResponseAction
+	| EvalRequestAction
+	| EvalResponseAction;

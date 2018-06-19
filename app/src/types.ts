@@ -1,34 +1,31 @@
 import { schema } from 'normalizr';
 
-import { CodeState } from './reducers/code';
+import { BlocksState } from './reducers/blocks';
+import { VariablesState } from './reducers/variables';
 
 export interface Block {
 	id: string;
+	type: 'Layer' | 'Code';
 	x: number;
 	y: number;
 	prev: Block[];
 	next: Block[];
 }
 
-export interface Model extends Block {
-	name: string;
-	type: string;
-	layers: Layer[];
-	inputs: Tensor[];
-	outputs: Tensor[];
+export interface LayerBlock extends Block {
+	layerType: string;
 }
 
-export function isModel(block: Block): block is Model {
-	return (block as Model).type !== undefined;
+export function isLayer(block: Block): block is LayerBlock {
+	return block.type === 'Layer';
 }
 
 export interface CodeBlock extends Block {
-	id: string;
 	code: string;
 }
 
 export function isCode(block: Block): block is CodeBlock {
-	return (block as CodeBlock).code !== undefined;
+	return block.type === 'Code';
 }
 
 export interface Layer {
@@ -54,7 +51,8 @@ export interface Variable {
 }
 
 export interface AppState {
-	code: CodeState;
+	blocks: BlocksState;
+	variables: VariablesState;
 }
 
 export const BlockSchema = new schema.Entity('blocks');

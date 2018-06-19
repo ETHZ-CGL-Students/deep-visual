@@ -47,8 +47,8 @@ class MyJSONWrapper(object):
 # sio is used when running on the main thread
 # socketio is used in off-main threads and transfers data via redis to 'sio'
 app = Flask(__name__)
-sio = SocketIO(app, binary=True, message_queue='redis://', json=MyJSONWrapper)
-socketio = SocketIO(binary=True, message_queue='redis://', json=MyJSONWrapper)
+sio = SocketIO(app, message_queue='redis://', json=MyJSONWrapper)
+socketio = SocketIO(message_queue='redis://', json=MyJSONWrapper)
 
 
 # Context manager allows us to capture 'print' statements and other output
@@ -168,15 +168,14 @@ def serialize_tensorshape(tensorshape):
 class Block(object):
     """ An arbitrary block of something """
 
-    def __init__(self, type, id=str(uuid.uuid4()), x=10, y=10, prev=[],
-                 nxt=[]):
-        self.id = id
+    def __init__(self, type, id=None, x=10, y=10, prev=None, nxt=None):
+        self.id = id if id is not None else str(uuid.uuid4())
         self.type = type
         self.locked = False
         self.x = x
         self.y = y
-        self.prev = prev
-        self.next = nxt
+        self.prev = prev if prev is not None else []
+        self.next = nxt if nxt is not None else []
 
     def to_json(self):
         """ This is called by our custom json serializer """
@@ -194,7 +193,7 @@ class Block(object):
 class CodeBlock(Block):
     """ An arbitrary block of code in the editor that can be executed and connected """
 
-    def __init__(self, code, x=10, y=10, prev=[], nxt=[]):
+    def __init__(self, code, x=10, y=10, prev=None, nxt=None):
         super(CodeBlock, self).__init__(
             type='Code', x=x, y=y, prev=prev, nxt=nxt)
         self.code = code
@@ -210,7 +209,7 @@ class CodeBlock(Block):
 class LayerBlock(Block):
     """ An block representing a layer of a model """
 
-    def __init__(self, layer, x=10, y=10, prev=[], nxt=[]):
+    def __init__(self, layer, x=10, y=10, prev=None, nxt=None):
         super(LayerBlock, self).__init__(
             id=layer.name, type='Layer', x=x, y=y, prev=prev, nxt=nxt)
         self.layer = layer
@@ -219,7 +218,7 @@ class LayerBlock(Block):
         """ This is called by our custom json serializer """
 
         json = super(LayerBlock, self).to_json()
-        json['layer_type'] = type(self.layer).__name__
+        json['layerType'] = type(self.layer).__name__
         return json
 
 
@@ -242,65 +241,69 @@ def disconnect():
 
 
 # Client requests all blocks of code
-@sio.on('code')
+@sio.on('block_list')
 def getCode():
     return blocks
 
 
 # Client creates a new code block
-@sio.on('code_create')
-def addCode(code):
-    newBlock = CodeBlock(code)
+@sio.on('block_create')
+def addCode(args):
+    newBlock = CodeBlock(args['code'])
     blocks.append(newBlock)
-    return newBlock
+    sio.emit('block_create', data=newBlock.to_json())
 
 
 # Client edits the code of a code block
-@sio.on('code_change')
+@sio.on('block_change')
 def editCode(args):
     block = next((c for c in blocks if c.id == args['id']), None)
-    if block != None:
+    if block is not None:
         block.code = args['code']
-    return block
+        sio.emit('block_change', data=block.to_json())
 
 
-# Client changes the location of a code block
-@sio.on('code_move')
+# Client changes the location of a block
+@sio.on('block_move')
 def moveCode(args):
     block = next((c for c in blocks if c.id == args['id']), None)
-    if block != None:
+    if block is not None:
         block.x = args['x']
         block.y = args['y']
-    return block
+        sio.emit('block_move', data=block.to_json())
 
 
 # Client connects to code blocks together
-@sio.on('code_connect')
+@sio.on('block_connect')
 def connectCode(args):
     blockFrom = next((c for c in blocks if c.id == args['from']), None)
     blockTo = next((c for c in blocks if c.id == args['to']), None)
-    if blockFrom == None or blockTo == None:
-        return None
+    if blockFrom is None or blockTo is None or blockFrom == blockTo:
+        return
 
     blockFrom.next.append(blockTo)
     blockTo.prev.append(blockFrom)
-    return [blockFrom, blockTo]
+    sio.emit('block_connect', data=[blockFrom, blockTo])
 
 
 # Client deletes a code block
-@sio.on('code_delete')
+@sio.on('block_delete')
 def deleteCode(args):
     global blocks
-    blocks = [c for c in blocks if c.id != args['id']]
-    return blocks
+    block = next((c for c in blocks if c.id == args['id']), None)
+    if block is not None:
+        blocks = [c for c in blocks if c.id != args['id']]
+        sio.emit('block_delete', data=block.to_json())
 
 
 # Client clicks 'run' on a code block
-@sio.on('code_run')
-def runCode(blockId):
+@sio.on('block_eval')
+def runCode(args):
+    global blocks
+
     # Find the code block by id
-    block = next((c for c in blocks if c.id == blockId), None)
-    if block == None:
+    block = next((c for c in blocks if c.id == args['id']), None)
+    if block is None:
         return ['Invalid block']
 
     # Save our globals - they will be exposed to the 'exec' function
@@ -309,19 +312,19 @@ def runCode(blockId):
     # TODO: Properly create our AST
     # Currently this only goes back one 'path', so a block
     # with more than one input doesn't work
-    blocks = [block]
+    bs = [block]
     first = block
     while len(first.prev) > 0:
         print(first.to_json())
         first = first.prev[0]
-        blocks.insert(0, first)
+        bs.insert(0, first)
 
     try:
         out = None
         # This captures any print and output statements
         with stdoutIO() as s:
             # Traverse the blocks
-            for b in blocks:
+            for b in bs:
                 # Set our 'locals' available inside the block to the exposed variables
                 ls = vars
                 # Set the block's input value equal to the last block's output value
@@ -369,10 +372,12 @@ class FitCallback(keras.callbacks.Callback):
 def expose_model(model):
     """ Expose a model to the web clients """
 
+    # Add all layers as blocks
     i = 0
     for layer in model.layers:
         blocks.append(LayerBlock(layer, x=i * 100))
         i += 1
+    # Link the layers 'prev' and 'next'
     for layer in model.layers:
         p = next((l.name for l in model.layers if l.output == layer.input),
                  None)
@@ -390,17 +395,17 @@ def expose_model(model):
                     b.next = [nxt]
                 break
 
-    @sio.on('model')
-    def getModel():
-        return serialize_model(model)
+    # @sio.on('model')
+    # def getModel():
+    #     return serialize_model(model)
 
-    @sio.on('layer')
-    def getLayer(layer_name=None):
-        layer = model.get_layer(name=layer_name)
-        weights = layer.get_weights()
-        if len(weights) <= 0:
-            return None
-        return serialize_matrix(weights[0])
+    # @sio.on('layer')
+    # def getLayer(layer_name=None):
+    #     layer = model.get_layer(name=layer_name)
+    #     weights = layer.get_weights()
+    #     if len(weights) <= 0:
+    #         return None
+    #     return serialize_matrix(weights[0])
 
 
 def expose_variables(newVars):

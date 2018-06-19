@@ -2,8 +2,10 @@ import { combineReducers } from 'redux';
 
 import { AppState } from '../types';
 
-import code from './code';
+import blocks from './blocks';
+import variables from './variables';
 
 export default combineReducers<AppState>({
-	code
+	blocks,
+	variables
 });
