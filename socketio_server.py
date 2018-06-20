@@ -232,10 +232,6 @@ class CodeBlock(Block):
         # Clear the input we set
         ls.pop('input')
 
-        # If our block had output, then it will be in the 'out' variable
-        if out is not None:
-            out = serialize(out)
-
         # Return our results
         return out
 
@@ -291,17 +287,17 @@ def loadBlocks():
                         pBlock = next((b for b in blocks if b.id == pId), None)
                         if pBlock is not None:
                             block.prev.append(pBlock)
-                        if pBlock.type != 'Code':
-                            pBlock.next.append(block)
+                            if pBlock.type != 'Code':
+                                pBlock.next.append(block)
 
                     nexts = block.next
                     block.next = []
                     for nId in nexts:
                         nBlock = next((b for b in blocks if b.id == nId), None)
                         if nBlock is not None:
-                            block.prev.append(nBlock)
-                        if nBlock.type != 'Code':
-                            nBlock.next.append(block)
+                            block.next.append(nBlock)
+                            if nBlock.type != 'Code':
+                                nBlock.next.append(block)
     except FileNotFoundError:
         pass
 
