@@ -9,16 +9,26 @@ import {
 	requestConnect,
 	requestCreate,
 	requestDelete,
+	requestDisconnect,
 	requestEval,
 	requestList,
 	requestMove
 } from './actions/blocks';
 import { startTrain } from './actions/train';
 import { requestVariables } from './actions/variables';
+import { Arrow } from './components/Arrow';
 import { CodeBlockComp, LayerBlockComp } from './components/Blocks';
-import { getBlocks } from './selectors/blocks';
+import { getBlocks, getConnections } from './selectors/blocks';
 import { getVariables } from './selectors/variables';
-import { AppState, Block, CodeBlock, isCode, isLayer, Variable } from './types';
+import {
+	AppState,
+	Block,
+	CodeBlock,
+	Connection,
+	isCode,
+	isLayer,
+	Variable
+} from './types';
 
 const Wrapper = styled.div`
 	display: flex;
@@ -78,6 +88,7 @@ const Content = styled.div`
 
 interface Props {
 	blocks: Block[];
+	connections: Connection[];
 	vars: Variable[];
 	requestVariables: () => AppAction;
 	requestList: () => AppAction;
@@ -85,6 +96,7 @@ interface Props {
 	requestChange: (id: string, code: string) => AppAction;
 	requestMove: (id: string, x: number, y: number) => AppAction;
 	requestConnect: (from: string, to: string) => AppAction;
+	requestDisconnect: (from: string, to: string) => AppAction;
 	requestDelete: (id: string) => AppAction;
 	requestEval: (b: CodeBlock) => AppAction;
 	startTraining: () => AppAction;
@@ -138,6 +150,10 @@ class App extends React.Component<Props, OwnState> {
 		this.props.requestConnect(from, to);
 	}
 
+	removeConnection(conn: Connection) {
+		this.props.requestDisconnect(conn.from.id, conn.to.id);
+	}
+
 	componentWillUnmount() {
 		// window.removeEventListener('keyup', e => this.handleKeyUp(e), false);
 	}
@@ -151,7 +167,7 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	render() {
-		const { blocks, vars } = this.props;
+		const { blocks, connections, vars } = this.props;
 
 		return (
 			<Wrapper>
@@ -178,7 +194,16 @@ class App extends React.Component<Props, OwnState> {
 						))}
 					</VarMenu>
 				</Menu>
-				<Content>{blocks.map(b => this.renderBlock(b))}</Content>
+				<Content>
+					{connections.map(conn => (
+						<Arrow
+							key={conn.from.id + '-' + conn.to.id}
+							conn={conn}
+							onClick={() => this.removeConnection(conn)}
+						/>
+					))}
+					{blocks.map(b => this.renderBlock(b))}
+				</Content>
 			</Wrapper>
 		);
 	}
@@ -215,6 +240,7 @@ class App extends React.Component<Props, OwnState> {
 const mapStateToProps = (state: AppState) => {
 	return {
 		blocks: getBlocks(state),
+		connections: getConnections(state),
 		vars: getVariables(state)
 	};
 };
@@ -230,6 +256,8 @@ const mapDispatchToProps = (dispatch: Dispatch<AppAction>) => {
 			dispatch(requestMove(id, x, y)),
 		requestConnect: (from: string, to: string): AppAction =>
 			dispatch(requestConnect(from, to)),
+		requestDisconnect: (from: string, to: string): AppAction =>
+			dispatch(requestDisconnect(from, to)),
 		requestDelete: (id: string): AppAction => dispatch(requestDelete(id)),
 		requestEval: (b: CodeBlock): AppAction => dispatch(requestEval(b)),
 		startTraining: (): AppAction => dispatch(startTrain())

@@ -8,6 +8,7 @@ const Wrapper = styled.div`
 
 const Dot = styled.div`
 	display: inline-block;
+	box-sizing: border-box;
 	width: 20px;
 	height: 20px;
 	border-radius: 50%;
@@ -75,11 +76,14 @@ export class Connector extends React.Component<Props, OwnState> {
 
 		return (
 			<Wrapper
+				id={'c-' + id + (isOutput ? '-output' : '-input')}
 				className="cancel-drag"
 				style={{
 					left: isOutput ? undefined : -10,
 					right: isOutput ? -10 : undefined,
-					top: y
+					top: y,
+					height: 20,
+					width: 20
 				}}
 			>
 				<Dot

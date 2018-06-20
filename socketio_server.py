@@ -82,8 +82,7 @@ def serialize(data):
         return list(map(serialize, data))
     elif isinstance(data, dict):
         return {k: serialize(v) for k, v in data.items()}
-    print(data)
-    return None
+    return json.dumps(data)
 
 
 def serialize_matrix(mat):
@@ -196,18 +195,20 @@ class Block(metaclass=ABCMeta):
 
     @abstractmethod
     def eval(self, gs, ls, input):
-        """ Evaluate this block using the given input, returning
-        printed text and result in an array: [print, result]"""
+        """ Evaluate this block using the given input, returning the output"""
         return
 
 
 class CodeBlock(Block):
     """ An arbitrary block of code in the editor that can be executed and connected """
 
-    def __init__(self, code, x=10, y=10, prev=None, nxt=None):
-        super(CodeBlock, self).__init__(
-            type='Code', x=x, y=y, prev=prev, nxt=nxt)
-        self.code = code
+    def __init__(self, code='', x=10, y=10, prev=None, nxt=None, data=None):
+        if data is not None:
+            self.__dict__ = data
+        else:
+            super(CodeBlock, self).__init__(
+                type='Code', x=x, y=y, prev=prev, nxt=nxt)
+            self.code = code
 
     def to_json(self):
         """ This is called by our custom json serializer """
@@ -264,6 +265,47 @@ vars = {}
 blocks = []
 
 
+def saveBlocks():
+    with open('save/blocks.json', 'w') as outfile:
+        codeBlocks = [b for b in blocks if b.type == 'Code']
+        json.dump(codeBlocks, outfile, cls=MyJSONEncoder)
+
+
+def loadBlocks():
+    try:
+        with open('save/blocks.json', 'r') as infile:
+            global blocks
+            # Parse all the code blocks from file
+            data = json.load(infile, object_hook=lambda d: CodeBlock(data=d))
+            # Add the code blocks to the main blocks array
+            blocks.extend(data)
+            # Fix the 'prev' and 'next' arrays for all the code blocks,
+            # because in the JSON they are id references
+            for block in blocks:
+                if block.type != 'Code':
+                    pass
+                else:
+                    prevs = block.prev
+                    block.prev = []
+                    for pId in prevs:
+                        pBlock = next((b for b in blocks if b.id == pId), None)
+                        if pBlock is not None:
+                            block.prev.append(pBlock)
+                        if pBlock.type != 'Code':
+                            pBlock.next.append(block)
+
+                    nexts = block.next
+                    block.next = []
+                    for nId in nexts:
+                        nBlock = next((b for b in blocks if b.id == nId), None)
+                        if nBlock is not None:
+                            block.prev.append(nBlock)
+                        if nBlock.type != 'Code':
+                            nBlock.next.append(block)
+    except FileNotFoundError:
+        pass
+
+
 # Socket.IO connection event
 @sio.on('connect', namespace='/')
 def connect():
@@ -276,69 +318,98 @@ def disconnect():
     print('disconnect')
 
 
-# Client requests all blocks of code
+# List of all blocks
 @sio.on('block_list')
-def getCode():
+def getBlocks():
     return blocks
 
 
-# Client creates a new code block
+# Creating a new block
 @sio.on('block_create')
-def addCode(args):
+def addBlock(args):
     newBlock = CodeBlock(args['code'])
     blocks.append(newBlock)
     sio.emit('block_create', data=newBlock.to_json())
+    saveBlocks()
 
 
-# Client edits the code of a code block
+# Edit code of a block
 @sio.on('block_change')
-def editCode(args):
-    block = next((c for c in blocks if c.id == args['id']), None)
+def editBlock(args):
+    block = next((b for b in blocks if b.id == args['id']), None)
     if block is not None:
         block.code = args['code']
         sio.emit('block_change', data=block.to_json())
+        saveBlocks()
 
 
-# Client changes the location of a block
+# Move block around
 @sio.on('block_move')
-def moveCode(args):
-    block = next((c for c in blocks if c.id == args['id']), None)
+def moveBlock(args):
+    block = next((b for b in blocks if b.id == args['id']), None)
     if block is not None:
         block.x = args['x']
         block.y = args['y']
         sio.emit('block_move', data=block.to_json())
 
 
-# Client connects to code blocks together
+# Connecting blocks together
 @sio.on('block_connect')
-def connectCode(args):
-    blockFrom = next((c for c in blocks if c.id == args['from']), None)
-    blockTo = next((c for c in blocks if c.id == args['to']), None)
+def connectBlocks(args):
+    blockFrom = next((b for b in blocks if b.id == args['from']), None)
+    blockTo = next((b for b in blocks if b.id == args['to']), None)
     if blockFrom is None or blockTo is None or blockFrom == blockTo:
+        return
+
+    alreadyHas = next((n for n in blockFrom.next if n.id == blockTo.id), None)
+    if alreadyHas is not None:
         return
 
     blockFrom.next.append(blockTo)
     blockTo.prev.append(blockFrom)
     sio.emit('block_connect', data=[blockFrom.to_json(), blockTo.to_json()])
+    saveBlocks()
 
 
-# Client deletes a code block
+# Disconnecting blocks
+@sio.on('block_disconnect')
+def disconnectBlocks(args):
+    blockFrom = next((b for b in blocks if b.id == args['from']), None)
+    blockTo = next((b for b in blocks if b.id == args['to']), None)
+    if blockFrom is None or blockTo is None or blockFrom == blockTo:
+        return
+
+    blockFrom.next.remove(blockTo)
+    blockTo.prev.remove(blockFrom)
+    sio.emit('block_disconnect', data=[blockFrom.to_json(), blockTo.to_json()])
+    saveBlocks()
+
+
+# Deleting blocks
 @sio.on('block_delete')
-def deleteCode(args):
+def deleteBlock(args):
     global blocks
-    block = next((c for c in blocks if c.id == args['id']), None)
+    block = next((b for b in blocks if b.id == args['id']), None)
     if block is not None:
-        blocks = [c for c in blocks if c.id != args['id']]
+        # Remove connections on 'next' blocks to this one
+        for b in block.next:
+            b.prev.remove(block)
+        # Remove connections on 'prev' blocks to this one
+        for b in block.prev:
+            b.next.remove(block)
+        # Remove from blocks array
+        blocks = [b for b in blocks if b.id != args['id']]
         sio.emit('block_delete', data=block.to_json())
+        saveBlocks()
 
 
-# Client clicks 'run' on a code block
+# Evaluating a block (="running")
 @sio.on('block_eval')
-def runCode(args):
+def evalBlock(args):
     global blocks
 
     # Find the code block by id
-    block = next((c for c in blocks if c.id == args['id']), None)
+    block = next((b for b in blocks if b.id == args['id']), None)
     if block is None:
         return ['Invalid block']
 
@@ -459,6 +530,11 @@ def expose_variables(newVars):
 def start():
     """ Start our webserver and return the socket.io 
     client to which we can attach our own events """
+
+    # We wait with loading blocks until here so that the model layers
+    # are exposed, because they might be referenced in one of the
+    # code blocks 'next' or 'prev' arrays
+    loadBlocks()
 
     def thread_run():
         sio.run(app, port=8080)

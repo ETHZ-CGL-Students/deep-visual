@@ -1,56 +1,113 @@
 import * as React from 'react';
 
-type Vector2 = { x: number; y: number };
+import { Connection } from '../types';
 
-export const Arrow = ({
-	id,
-	from,
-	to
-}: {
-	id: number;
-	from: Vector2;
-	to: Vector2;
-}) => {
-	const dy = to.y - from.y;
-	const dx = to.x - from.x;
+interface Props {
+	conn: Connection;
+	onClick: () => void;
+}
 
-	const angle = Math.atan2(dy, dx);
-	const length = Math.sqrt(dx * dx + dy * dy);
+interface State {
+	hover: boolean;
+}
 
-	const style: React.CSSProperties = {
-		position: 'absolute',
-		left: from.x,
-		top: from.y,
-		transform: `rotate(${angle}rad)`,
-		transformOrigin: '0 0',
-		width: length,
-		height: 0
-	};
+export class Arrow extends React.Component<Props, State> {
+	constructor(props: Props) {
+		super(props);
 
-	const labelStyle: React.CSSProperties = {
-		position: 'absolute',
-		left: from.x + dx / 2,
-		top: from.y + dy / 2
-	};
+		this.state = {
+			hover: false
+		};
+	}
 
-	return (
-		<>
-			<div style={labelStyle}>{id}</div>
-			<div style={style}>
-				<div style={{ background: 'green', height: 4, marginRight: 20 }} />
+	handleMouseEnter() {
+		this.setState({
+			hover: true
+		});
+	}
+
+	handleMouseLeave() {
+		this.setState({
+			hover: false
+		});
+	}
+
+	render() {
+		const { conn } = this.props;
+		const { hover } = this.state;
+
+		const fromDiv = document.getElementById('c-' + conn.from.id + '-output');
+		const toDiv = document.getElementById('c-' + conn.to.id + '-input');
+
+		if (!fromDiv || !toDiv) {
+			return null;
+		}
+
+		const fromX = fromDiv.getBoundingClientRect().left - 200 + 8;
+		const fromY = fromDiv.getBoundingClientRect().top + 8;
+		const toX = toDiv.getBoundingClientRect().left - 200 + 8;
+		const toY = toDiv.getBoundingClientRect().top + 8;
+
+		const dy = toY - fromY;
+		const dx = toX - fromX;
+
+		const angle = Math.atan2(dy, dx);
+		const length = Math.sqrt(dx * dx + dy * dy);
+
+		const arrowStyle: React.CSSProperties = {
+			position: 'absolute',
+			left: fromX,
+			top: fromY,
+			transform: `rotate(${angle}rad)`,
+			transformOrigin: '0 0',
+			width: length,
+			height: 0
+		};
+
+		const labelStyle: React.CSSProperties = {
+			position: 'absolute',
+			left: fromX + dx / 2,
+			top: fromY + dy / 2,
+			fontSize: '1.5em',
+			background: hover ? 'orange' : 'white',
+			border: '1px solid black',
+			padding: 4,
+			cursor: 'default',
+			zIndex: 1000
+		};
+
+		return (
+			<>
+				<div style={arrowStyle}>
+					<div
+						style={{
+							background: hover ? 'orange' : 'green',
+							height: 4,
+							marginRight: 20
+						}}
+					/>
+					<div
+						style={{
+							width: 0,
+							height: 0,
+							marginRight: 6,
+							marginTop: -17,
+							borderTop: '14px solid transparent',
+							borderBottom: '14px solid transparent',
+							borderLeft: '22px solid ' + (hover ? 'orange' : 'green'),
+							float: 'right'
+						}}
+					/>
+				</div>
 				<div
-					style={{
-						width: 0,
-						height: 0,
-						marginRight: 6,
-						marginTop: -17,
-						borderTop: '14px solid transparent',
-						borderBottom: '14px solid transparent',
-						borderLeft: '22px solid green',
-						float: 'right'
-					}}
-				/>
-			</div>
-		</>
-	);
-};
+					style={labelStyle}
+					onMouseEnter={() => this.handleMouseEnter()}
+					onMouseLeave={() => this.handleMouseLeave()}
+					onClick={() => this.props.onClick()}
+				>
+					{conn.label}
+				</div>
+			</>
+		);
+	}
+}

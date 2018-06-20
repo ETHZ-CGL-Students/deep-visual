@@ -4,12 +4,9 @@ import * as openSocket from 'socket.io-client';
 
 import { AppAction } from '../actions';
 import {
-	respondChange,
-	respondConnect,
-	respondCreate,
+	respondBlocks,
+	respondDelete,
 	respondEval,
-	respondList,
-	respondMove,
 	TypeKeys as BlockTypeKeys
 } from '../actions/blocks';
 import {
@@ -42,19 +39,27 @@ socket.on('batch_begin', (batch: number) => store.dispatch(beginBatch(batch)));
 
 socket.on('block_create', (block: Block) => {
 	const data = normalize(block, BlockSchema);
-	store.dispatch(respondCreate(data.entities.blocks));
+	store.dispatch(respondBlocks(data));
 });
 socket.on('block_change', (block: Block) => {
 	const data = normalize(block, BlockSchema);
-	store.dispatch(respondChange(data.entities.blocks));
+	store.dispatch(respondBlocks(data));
 });
 socket.on('block_move', (block: Block) => {
 	const data = normalize(block, BlockSchema);
-	store.dispatch(respondMove(data.entities.blocks));
+	store.dispatch(respondBlocks(data));
 });
 socket.on('block_connect', (blocks: Block[]) => {
 	const data = normalize(blocks, [BlockSchema]);
-	store.dispatch(respondConnect(data.entities.blocks));
+	store.dispatch(respondBlocks(data));
+});
+socket.on('block_disconnect', (blocks: Block[]) => {
+	const data = normalize(blocks, [BlockSchema]);
+	store.dispatch(respondBlocks(data));
+});
+socket.on('block_delete', (block: Block) => {
+	const data = normalize(block, BlockSchema);
+	store.dispatch(respondDelete(data));
 });
 
 export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
@@ -65,16 +70,14 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 	switch (action.type) {
 		case VariablesTypeKeys.REQUEST_VARIABLES:
 			socket.emit('variables', (vars: Variable[]) => {
-				console.log(vars);
 				dispatch(respondVariables(vars));
 			});
 			break;
 
 		case BlockTypeKeys.LIST_REQUEST:
 			socket.emit('block_list', (blocks: CodeBlock[]) => {
-				console.log(blocks);
 				const data = normalize(blocks, [BlockSchema]);
-				dispatch(respondList(data.entities.blocks));
+				dispatch(respondBlocks(data));
 			});
 			break;
 
@@ -94,6 +97,10 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 			socket.emit('block_connect', { from: action.from, to: action.to });
 			break;
 
+		case BlockTypeKeys.DISCONNECT_REQUEST:
+			socket.emit('block_disconnect', { from: action.from, to: action.to });
+			break;
+
 		case BlockTypeKeys.EVAL_REQUEST:
 			socket.emit(
 				'block_eval',
@@ -111,9 +118,7 @@ export default ({ dispatch }: MiddlewareAPI<Dispatch<AppAction>, AppState>) => (
 			break;
 
 		case BlockTypeKeys.DELETE_REQUEST:
-			socket.emit('block_delete', { id: action.id }, (block: CodeBlock) => {
-				// TODO: Process deletion
-			});
+			socket.emit('block_delete', { id: action.id });
 			break;
 
 		default:

@@ -14,6 +14,12 @@ export interface Block {
 	out: any;
 }
 
+export interface Connection {
+	label: string;
+	from: Block;
+	to: Block;
+}
+
 export interface LayerBlock extends Block {
 	layerType: string;
 }

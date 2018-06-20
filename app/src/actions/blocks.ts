@@ -4,15 +4,13 @@ import { Block, CodeBlock } from '../types';
 
 export enum TypeKeys {
 	LIST_REQUEST = 'BLOCKS_LIST_REQUEST',
-	LIST_RESPONSE = 'BLOCKS_LIST_RESPONSE',
 	CREATE_REQUEST = 'BLOCKS_CREATE_REQUEST',
-	CREATE_RESPONSE = 'BLOCKS_CREATE_RESPONSE',
 	CHANGE_REQUEST = 'BLOCKS_CHANGE_REQUEST',
-	CHANGE_RESPONSE = 'BLOCKS_CHANGE_RESPONSE',
 	MOVE_REQUEST = 'BLOCKS_MOVE_REQUEST',
-	MOVE_RESPONSE = 'BLOCKS_MOVE_RESPONSE',
 	CONNECT_REQUEST = 'BLOCKS_CONNECT_REQUEST',
-	CONNECT_RESPONSE = 'BLOCKS_CONNECT_RESPONSE',
+	DISCONNECT_REQUEST = 'BLOCKS_DISCONNECT_REQUEST',
+	BLOCKS_RESPONSE = 'BLOCKS_RESPONSE',
+
 	DELETE_REQUEST = 'BLOCKS_DELETE_REQUEST',
 	DELETE_RESPONSE = 'BLOCKS_DELETE_RESPONSE',
 	EVAL_REQUEST = 'BLOCKS_EVAL_REQUEST',
@@ -28,17 +26,6 @@ export function requestList(): ListRequestAction {
 	};
 }
 
-export interface ListResponseAction extends Action {
-	type: TypeKeys.LIST_RESPONSE;
-	blocks: { [x: string]: Block };
-}
-export function respondList(blocks: any): ListResponseAction {
-	return {
-		type: TypeKeys.LIST_RESPONSE,
-		blocks
-	};
-}
-
 export interface CreateRequestAction extends Action {
 	type: TypeKeys.CREATE_REQUEST;
 	code: string;
@@ -47,17 +34,6 @@ export function requestCreate(code: string): CreateRequestAction {
 	return {
 		type: TypeKeys.CREATE_REQUEST,
 		code
-	};
-}
-
-export interface CreateResponseAction extends Action {
-	type: TypeKeys.CREATE_RESPONSE;
-	blocks: { [x: string]: Block };
-}
-export function respondCreate(blocks: any): CreateResponseAction {
-	return {
-		type: TypeKeys.CREATE_RESPONSE,
-		blocks
 	};
 }
 
@@ -71,17 +47,6 @@ export function requestChange(id: string, code: string): ChangeRequestAction {
 		type: TypeKeys.CHANGE_REQUEST,
 		id,
 		code
-	};
-}
-
-export interface ChangeResponseAction extends Action {
-	type: TypeKeys.CHANGE_RESPONSE;
-	blocks: { [x: string]: Block };
-}
-export function respondChange(blocks: any): ChangeResponseAction {
-	return {
-		type: TypeKeys.CHANGE_RESPONSE,
-		blocks
 	};
 }
 
@@ -104,14 +69,46 @@ export function requestMove(
 	};
 }
 
-export interface MoveResponseAction extends Action {
-	type: TypeKeys.MOVE_RESPONSE;
-	blocks: { [x: string]: Block };
+export interface ConnectRequestAction extends Action {
+	type: TypeKeys.CONNECT_REQUEST;
+	from: string;
+	to: string;
 }
-export function respondMove(blocks: any): MoveResponseAction {
+export function requestConnect(from: string, to: string): ConnectRequestAction {
 	return {
-		type: TypeKeys.MOVE_RESPONSE,
-		blocks
+		type: TypeKeys.CONNECT_REQUEST,
+		from,
+		to
+	};
+}
+
+export interface DisconnectRequestAction extends Action {
+	type: TypeKeys.DISCONNECT_REQUEST;
+	from: string;
+	to: string;
+}
+export function requestDisconnect(
+	from: string,
+	to: string
+): DisconnectRequestAction {
+	return {
+		type: TypeKeys.DISCONNECT_REQUEST,
+		from,
+		to
+	};
+}
+
+export interface BlocksResponseAction extends Action {
+	type: TypeKeys.BLOCKS_RESPONSE;
+	data: {
+		entities: { blocks: { [x: string]: Block } };
+		result: string | string[];
+	};
+}
+export function respondBlocks(data: any): BlocksResponseAction {
+	return {
+		type: TypeKeys.BLOCKS_RESPONSE,
+		data
 	};
 }
 
@@ -128,36 +125,15 @@ export function requestDelete(id: string): DeleteRequestAction {
 
 export interface DeleteResponseAction extends Action {
 	type: TypeKeys.DELETE_RESPONSE;
-	blocks: { [x: string]: Block };
+	data: {
+		entities: { blocks: { [x: string]: Block } };
+		result: string | string[];
+	};
 }
-export function respondDelete(blocks: any): DeleteResponseAction {
+export function respondDelete(data: any): DeleteResponseAction {
 	return {
 		type: TypeKeys.DELETE_RESPONSE,
-		blocks
-	};
-}
-
-export interface ConnectRequestAction extends Action {
-	type: TypeKeys.CONNECT_REQUEST;
-	from: string;
-	to: string;
-}
-export function requestConnect(from: string, to: string): ConnectRequestAction {
-	return {
-		type: TypeKeys.CONNECT_REQUEST,
-		from,
-		to
-	};
-}
-
-export interface ConnectResponseAction extends Action {
-	type: TypeKeys.CONNECT_RESPONSE;
-	blocks: { [x: string]: Block };
-}
-export function respondConnect(blocks: any): ConnectResponseAction {
-	return {
-		type: TypeKeys.CONNECT_RESPONSE,
-		blocks
+		data
 	};
 }
 
@@ -194,15 +170,12 @@ export function respondEval(
 // Merge all actions
 export type BlockAction =
 	| ListRequestAction
-	| ListResponseAction
 	| CreateRequestAction
-	| CreateResponseAction
 	| ChangeRequestAction
-	| ChangeResponseAction
 	| MoveRequestAction
-	| MoveResponseAction
 	| ConnectRequestAction
-	| ConnectResponseAction
+	| DisconnectRequestAction
+	| BlocksResponseAction
 	| DeleteRequestAction
 	| DeleteResponseAction
 	| EvalRequestAction

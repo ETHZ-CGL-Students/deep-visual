@@ -3,7 +3,6 @@ import Draggable, { DraggableData } from 'react-draggable';
 import styled from 'styled-components';
 
 import { Block } from '../../types';
-import { Arrow } from '../Arrow';
 import { Connector } from '../Connector';
 
 const Wrapper = styled.div`
@@ -47,6 +46,12 @@ export abstract class BlockComp<
 		}
 	}
 
+	onDelete() {
+		if (this.props.onDelete) {
+			this.props.onDelete();
+		}
+	}
+
 	render() {
 		const { block, trackDrag } = this.props;
 
@@ -61,14 +66,19 @@ export abstract class BlockComp<
 				}}
 			>
 				<Wrapper innerRef={this.ref}>
-					<div>{block.id}</div>
+					<div style={{ display: 'flex', marginBottom: 4 }}>
+						<div style={{ flex: 1, cursor: 'default' }}>{block.id}</div>
+						{this.props.onDelete && (
+							<button onClick={() => this.onDelete()}>X</button>
+						)}
+					</div>
+
 					<Output style={{ color: 'red' }}>{block.error}</Output>
 					<Output style={{ color: 'green' }}>
 						{JSON.stringify(block.out)}
 					</Output>
 
 					{this.renderContent()}
-					{this.renderLines()}
 
 					<Connector
 						y="calc(50% - 10px)"
@@ -85,40 +95,6 @@ export abstract class BlockComp<
 					<div style={{ clear: 'both' }} />
 				</Wrapper>
 			</Draggable>
-		);
-	}
-
-	renderLines() {
-		const ref = this.ref.current;
-
-		if (!ref) {
-			// The first time our component is rendered we don't
-			// have a ref yet, so force update to render again with a ref
-			this.forceUpdate();
-			return;
-		}
-
-		const h = ref.offsetHeight;
-		const w = ref.offsetWidth;
-
-		const block = this.props.block;
-
-		return (
-			<>
-				{this.props.block.prev.map((b, i) => {
-					const fromX = b.x - block.x + w;
-					const fromY = b.y - block.y + h / 2;
-
-					return (
-						<Arrow
-							key={b.id}
-							id={i}
-							from={{ x: fromX, y: fromY }}
-							to={{ x: 0, y: h / 2 }}
-						/>
-					);
-				})}
-			</>
 		);
 	}
 

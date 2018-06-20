@@ -2,37 +2,49 @@ import { AppAction } from '../actions';
 import { TypeKeys } from '../actions/blocks';
 import { Block } from '../types';
 
-const merge = require('lodash.merge');
-
 export interface BlocksState {
+	keys: string[];
 	blocks: { [x: string]: Block };
 }
 
 let initialState: BlocksState = {
+	keys: [],
 	blocks: {}
 };
 
 export default (state = initialState, action: AppAction): BlocksState => {
 	switch (action.type) {
-		case TypeKeys.LIST_RESPONSE:
-		case TypeKeys.CREATE_RESPONSE:
-		case TypeKeys.CHANGE_RESPONSE:
-		case TypeKeys.MOVE_RESPONSE:
-		case TypeKeys.CONNECT_RESPONSE:
+		case TypeKeys.BLOCKS_RESPONSE:
+			const keys =
+				typeof action.data.result === 'string'
+					? [action.data.result]
+					: action.data.result;
+
+			return {
+				keys: state.keys
+					.concat(keys)
+					.filter((value, index, self) => self.indexOf(value) === index),
+				blocks: Object.assign({}, state.blocks, action.data.entities.blocks)
+			};
+
+		case TypeKeys.DELETE_RESPONSE:
+			// TODO: Remove block from 'prev' and 'next' references of other blocks
 			return {
 				...state,
-				blocks: merge({}, state.blocks, action.blocks)
+				keys: state.keys.filter(k => k !== action.data.result)
 			};
 
 		case TypeKeys.EVAL_RESPONSE:
 			return {
 				...state,
-				blocks: merge({}, state.blocks, {
+				blocks: {
+					...state.blocks,
 					[action.block.id]: {
+						...state.blocks[action.block.id],
 						error: action.error,
 						out: action.out
 					}
-				})
+				}
 			};
 
 		default:

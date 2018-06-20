@@ -24,7 +24,7 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 		super(props);
 
 		this.state = {
-			show: false
+			show: true
 		};
 	}
 
@@ -32,21 +32,9 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 		this.props.onEval(this.props.block);
 	}
 
-	toggle() {
-		this.setState({
-			show: !this.state.show
-		});
-	}
-
 	onChange(code: string) {
 		if (this.props.onChange) {
 			this.props.onChange(code);
-		}
-	}
-
-	onDelete() {
-		if (this.props.onDelete) {
-			this.props.onDelete();
 		}
 	}
 
@@ -59,13 +47,6 @@ export class CodeBlockComp extends BlockComp<Props, OwnState> {
 				className="cancel-drag"
 				style={{ position: 'relative', minWidth: 300, padding: '10px' }}
 			>
-				<div style={{ display: 'flex', marginBottom: '1em' }}>
-					<button style={{ flex: 1 }} onClick={() => this.toggle()}>
-						{show ? 'Hide' : 'Show'}
-					</button>
-					<button onClick={() => this.onDelete()}>X</button>
-				</div>
-
 				<div
 					style={{
 						visibility: show ? 'visible' : 'hidden',
