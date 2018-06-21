@@ -118,9 +118,20 @@ def serialize_variable(name, var):
 def serialize_model(model):
     """ Serialize keras models """
 
+    # Note: Keras does not provide public info about how many
+    # times a shared layer is used, therefore we loop until an exception occurs.
+    # We want to treat each usage of a shared node as a separate layer
     layers = []
     for layer in model.layers:
-        layers.append(serialize_layer(layer))
+        idx = 0
+        while True:
+            try:
+                layers.append(serialize_layer(layer, idx))
+            except:
+                break
+            else:
+                idx += 1
+
     inputs = []
     for input in model.inputs:
         inputs.append(serialize_tensor(input))
@@ -138,15 +149,25 @@ def serialize_model(model):
     }
 
 
-def serialize_layer(layer):
-    """ Serialize keras layers """
+def serialize_layer(layer, idx):
+    """ Serialize idx-th occurrence of a keras layer """
+
+    # Note: call to layer.get_input_at (.get_output_at) returns a Tensor
+    # when there is a unique input (output), a list otherwise.
+    _inputs = layer.input
+    if not isinstance(_inputs, list):
+        _inputs = [_inputs]
+
+    _outputs = layer.output
+    if not isinstance(_outputs, list):
+        _outputs = [_outputs]
 
     return {
-        'name': layer.name,
+        'name': layer.name if idx is 0 else "%s (%d)" % (layer.name, idx),
         'type': type(layer).__name__,
         'config': layer.get_config(),
-        'input': serialize_tensor(layer.input),
-        'output': serialize_tensor(layer.output)
+        'inputs': [serialize_tensor(t) for t in _inputs],
+        'outputs': [serialize_tensor(t) for t in _outputs]
     }
 
 
