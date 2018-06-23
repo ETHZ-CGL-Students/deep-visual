@@ -155,7 +155,7 @@ class Block(metaclass=ABCMeta):
         }
 
     @abstractmethod
-    def eval(self, gs, ls, input):
+    def eval(self, gs, ls):
         """ Evaluate this block using the given input, returning the output"""
         return
 
@@ -184,23 +184,14 @@ class CodeBlock(Block):
         json['code'] = self.code
         return json
 
-    def eval(self, gs, ls, input):
+    def eval(self, gs, ls):
         out = None
-
-        # Set the input as a local variable so we can use it in the block
-        ls['input'] = input
 
         # Run our custom code
         exec(self.code, gs, ls)
 
-        # Save the output of our cusotm code, so that we can return it
-        out = ls.pop('out', None)
-
-        # Clear the input we set
-        ls.pop('input', None)
-
-        # Return our results
-        return out
+        # Return the "local" variables which contain our results
+        return ls
 
 
 class LayerBlock(Block):
@@ -221,7 +212,7 @@ class LayerBlock(Block):
         json['type'] = type(self.layer).__name__
         return json
 
-    def eval(self, gs, ls, input):
+    def eval(self, gs, ls):
         return self.layer.output
 
 
@@ -243,7 +234,7 @@ class VariableBlock(Block):
         json['name'] = self.name
         return json
 
-    def eval(self, gs, ls, input):
+    def eval(self, gs, ls):
         return self.value
 
 
@@ -422,32 +413,33 @@ def evalBlock(args):
     todo = [block]
     while len(todo) > 0:
         b = todo.pop()
-        bs.extend(b.prev)
-        todo.extend(b.prev)
+        ins = list(map(lambda l: l.fromBlock, b.inputs.values()))
+        bs.extend(ins)
+        todo.extend(ins)
 
     bs.reverse()
     outs = {}
 
-    # Save our globals, they will be exposed to the block eval...
+    # Save our globals, they will be exposed to the block eval
     gs = globals()
-
-    # ...and use our exposed variables as the local variables inside the block eval
-    ls = vars
 
     try:
         # Traverse the blocks
         for b in bs:
-            input = []
+            # Use our exposed variables as the local variables inside the block eval
+            ls = vars
 
-            # Get inputs from previous blocks
-            for p in b.prev:
-                input.append(outs[p.id])
+            # Get inputs from links
+            for k, l in b.inputs.items():
+                ls[k] = outs[l.fromBlock.id][l.fromPort]
 
             # Run the function
-            out = b.eval(gs, ls, input)
+            out = b.eval(gs, ls)
 
-            # Save the output of our execution
-            outs[b.id] = out
+            # Save the output ports of our execution
+            outs[b.id] = {}
+            for k in b.outputs.keys():
+                outs[b.id][k] = out[k]
 
         # Get the output for the block we ran the eval socket.io event
         res = outs[block.id]

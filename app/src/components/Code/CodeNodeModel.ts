@@ -4,6 +4,8 @@ import { BasePortModel } from '../Base/BasePortModel';
 
 export class CodeNodeModel extends BaseNodeModel {
 	code: string;
+	protected changeListener?: () => void;
+	protected runListener?: () => void;
 
 	constructor(block: CodeBlock) {
 		super('code', block.id);
@@ -18,5 +20,24 @@ export class CodeNodeModel extends BaseNodeModel {
 		block.outputs.forEach(k => {
 			this.addPort(new BasePortModel(false, k));
 		});
+	}
+
+	onChange(listener: () => void) {
+		this.changeListener = listener;
+	}
+	changeCode(code: string) {
+		this.code = code;
+		if (this.changeListener) {
+			this.changeListener();
+		}
+	}
+
+	onRun(listener: () => void) {
+		this.runListener = listener;
+	}
+	run() {
+		if (this.runListener) {
+			this.runListener();
+		}
 	}
 }

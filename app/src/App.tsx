@@ -134,9 +134,18 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	addNodeForBlock(b: Block) {
-		let _node = null;
+		let _node: any = null;
 		if (isCode(b)) {
 			_node = new CodeNodeModel(b);
+			_node.onChange(() => {
+				API.changeBlock(b.id, _node.code);
+			});
+			_node.onRun(() => {
+				API.evalBlock(b.id, (err, out) => {
+					console.log(err);
+					console.log(out);
+				});
+			});
 		} else if (isVar(b)) {
 			_node = new VariableNodeModel(b);
 		} else if (isLayer(b)) {

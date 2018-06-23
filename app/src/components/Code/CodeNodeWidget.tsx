@@ -21,12 +21,19 @@ export class CodeNodeWidget extends BaseNodeWidget<
 	}
 
 	onChange(code: string) {
-		//
+		this.props.node.changeCode(code);
+	}
+
+	onRun() {
+		this.props.node.run();
 	}
 
 	renderContent() {
 		return (
 			<div onClick={() => this.props.node.setSelected(false)}>
+				<button style={{ width: '100%' }} onClick={() => this.onRun()}>
+					Run
+				</button>
 				<CodeMirror
 					value={this.props.node.code}
 					onChange={c => this.onChange(c)}
