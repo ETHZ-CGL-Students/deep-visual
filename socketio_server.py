@@ -29,6 +29,8 @@ class MyJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, 'to_json'):
             return obj.to_json()
+        elif isinstance(obj, np.ndarray):
+            return serialize_matrix(obj)
         return json.JSONEncoder.default(self, obj)
 
 
@@ -66,26 +68,6 @@ def stdoutIO(stdout=None):
     sys.stdout = old
 
 
-# TODO: This needs to make sure we serialize matrixes properly
-# Plus we can probably combine this with the custom json encoder above
-def serialize(data):
-    """ Custom serialization function to serialize any variable to json """
-
-    if isinstance(data, (str, int, float, bytes, bytearray)):
-        return data
-    elif isinstance(data, keras.Model):
-        return serialize_model(data)
-    elif isinstance(data, tf.Tensor):
-        return serialize_tensor(data)
-    elif isinstance(data, np.ndarray):
-        return serialize_matrix(data)
-    elif isinstance(data, list):
-        return list(map(serialize, data))
-    elif isinstance(data, dict):
-        return {k: serialize(v) for k, v in data.items()}
-    return MyJSONWrapper.dumps(data)
-
-
 def serialize_matrix(mat):
     """ Serialize a matrix to an array of bytes: [nDims] [dim1, dim2, ...] [values]"""
 
@@ -110,64 +92,15 @@ def serialize_matrix(mat):
     return str
 
 
-def serialize_variable(name, var):
-    """ Serialize an arbitrary variable """
+class Variable(object):
+    """ A variable that is exposed to the frontend """
 
-    return {'name': name, 'type': type(var).__name__}
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
 
-
-def serialize_model(model):
-    """ Serialize keras models """
-
-    layers = []
-    for layer in model.layers:
-        layers.append(serialize_layer(layer))
-    inputs = []
-    for input in model.inputs:
-        inputs.append(serialize_tensor(input))
-    outputs = []
-    for output in model.outputs:
-        outputs.append(serialize_tensor(output))
-
-    return {
-        'id': model.name,
-        'name': model.name,
-        'config': model.get_config(),
-        'layers': layers,
-        'inputs': inputs,
-        'outputs': outputs
-    }
-
-
-def serialize_layer(layer):
-    """ Serialize keras layers """
-
-    return {
-        'name': layer.name,
-        'type': type(layer).__name__,
-        'config': layer.get_config(),
-        'input': serialize_tensor(layer.input),
-        'output': serialize_tensor(layer.output)
-    }
-
-
-def serialize_tensor(tensor):
-    """ Serialize a tensor """
-
-    return {
-        'name': tensor.name,
-        'type': tensor.dtype.as_numpy_dtype.__name__,
-        'shape': serialize_tensorshape(tensor.shape)
-    }
-
-
-def serialize_tensorshape(tensorshape):
-    """ Serialize the tensorshape """
-
-    dims = []
-    for dim in tensorshape.dims:
-        dims.append(dim.value)
-    return {'dims': dims, 'nDims': tensorshape.ndims}
+    def to_json(self):
+        return {'name': self.name, 'type': type(self.value).__name__}
 
 
 class Link(object):
@@ -292,6 +225,28 @@ class LayerBlock(Block):
         return self.layer.output
 
 
+class VariableBlock(Block):
+    """ An block representing an exposed variable """
+
+    def __init__(self, name, value, x=10, y=10):
+        super(VariableBlock, self).__init__(id=name, x=x, y=y)
+        self.name = name
+        self.value = value
+        self.inputs = OrderedDict([])
+        self.outputs = OrderedDict([('value', [])])
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(VariableBlock, self).to_json()
+        json['class'] = 'VariableBlock'
+        json['name'] = self.name
+        return json
+
+    def eval(self, gs, ls, input):
+        return self.value
+
+
 # Exposed variables
 vars = {}
 # Blocks of code
@@ -316,6 +271,9 @@ def parseDataObject(d):
     # the blocks, and we don't have all the blocks yet, so we can resolve the refs
     if d['class'] == 'CodeBlock':
         return CodeBlock(data=d)
+    elif d['class'] == 'VariableBlock':
+        return VariableBlock(
+            name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
 
     return d
 
@@ -327,7 +285,6 @@ def loadData():
             global blocks
             # Parse all the code blocks from file
             data = json.load(infile, object_hook=parseDataObject)
-            print(data)
 
             # Add the code blocks to the main blocks array
             blocks.extend(data['blocks'])
@@ -373,15 +330,27 @@ def disconnect():
 # Get all data (blocks, links and variables)
 @sio.on('data')
 def getData():
-    return {'blocks': blocks, 'links': links, 'vars': []}
+    return {
+        'blocks': blocks,
+        'links': links,
+        'vars': list(map(lambda kv: Variable(kv[0], kv[1]), vars.items()))
+    }
 
 
 # Creating a new block
 @sio.on('block_create')
 def addBlock(args):
-    newBlock = CodeBlock(args['code'])
-    blocks.append(newBlock)
-    sio.emit('block_create', data=newBlock.to_json())
+    print(args)
+    if 'code' in args:
+        newBlock = CodeBlock(args['code'])
+        blocks.append(newBlock)
+        sio.emit('block_create', data=newBlock.to_json())
+    elif 'var' in args:
+        name = args['var']
+        value = vars[name]
+        newBlock = VariableBlock(name, value)
+        blocks.append(newBlock)
+        sio.emit('block_create', data=newBlock.to_json())
     saveData()
 
 
@@ -409,6 +378,7 @@ def moveBlock(args):
     block.x = args['x']
     block.y = args['y']
     sio.emit('block_move', data=block.to_json())
+    saveData()
 
 
 # Deleting blocks
@@ -421,8 +391,9 @@ def deleteBlock(args):
     # Remove all links to this block
     for portName in block.inputs:
         link = block.inputs[portName]
-        link.fromBlock.outputs[link.fromPort].remove(link)
-        links.remove(link)
+        if link is not None:
+            link.fromBlock.outputs[link.fromPort].remove(link)
+            links.remove(link)
 
     # Remove all links from this block
     for portName in block.outputs:
@@ -480,8 +451,6 @@ def evalBlock(args):
 
         # Get the output for the block we ran the eval socket.io event
         res = outs[block.id]
-        if res is not None:
-            res = serialize(res)
 
         # Return our results to the client
         return [None, res]
@@ -510,7 +479,7 @@ def createPort(args):
             return
         block.outputs[portName] = []
 
-    sio.emit('block_change', data=block.to_json())
+    sio.emit('port_create', data={'id': block.id, 'port': portName})
     saveData()
 
 
@@ -533,7 +502,13 @@ def renamePort(args):
                                      for k, v in block.outputs.items()])
         # block.outputs[newName] = block.outputs.pop(oldName, None)
 
-    sio.emit('block_change', data=block.to_json())
+    sio.emit(
+        'port_rename',
+        data={
+            'id': block.id,
+            'port': newName,
+            'oldName': oldName
+        })
     saveData()
 
 
@@ -552,7 +527,7 @@ def deletePort(args):
     else:
         block.outputs.pop(portName, None)
 
-    sio.emit('block_change', data=block.to_json())
+    sio.emit('port_delete', data={'id': block.id, 'port': portName})
     saveData()
 
 

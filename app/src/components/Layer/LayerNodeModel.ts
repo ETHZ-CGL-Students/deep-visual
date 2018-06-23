@@ -1,10 +1,11 @@
 import { BasePortModel } from '../Base/BasePortModel';
 
+import { LayerBlock } from '../../types';
 import { BaseNodeModel } from '../Base/BaseNodeModel';
 
 export class LayerNodeModel extends BaseNodeModel {
-	constructor(name: string) {
-		super('layer', name);
+	constructor(block: LayerBlock) {
+		super('layer', block.id);
 
 		this.color = 'rgb(0,192,255)';
 		this.addPort(new BasePortModel(true, 'input'));

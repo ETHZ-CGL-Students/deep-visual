@@ -5,7 +5,7 @@ import {
 	DiagramWidget
 } from 'storm-react-diagrams';
 
-import { Block, isCode, Variable } from './types';
+import { Block, isCode, isLayer, isVar, Variable } from './types';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
@@ -13,6 +13,8 @@ import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
 import { CodeNodeModel } from './components/Code/CodeNodeModel';
 import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
 import { LayerNodeModel } from './components/Layer/LayerNodeModel';
+import { VariableNodeFactory } from './components/Variable/VariableNodeFactory';
+import { VariableNodeModel } from './components/Variable/VariableNodeModel';
 import API from './services/api';
 
 const debounce = require('lodash.debounce');
@@ -20,6 +22,8 @@ const debounce = require('lodash.debounce');
 interface Props {}
 
 interface OwnState {
+	blocks: BaseNodeModel[];
+	links: BaseLinkModel[];
 	vars: Variable[];
 	epochs: number;
 	epoch: number;
@@ -35,6 +39,8 @@ class App extends React.Component<Props, OwnState> {
 		super(props);
 
 		this.state = {
+			blocks: [],
+			links: [],
 			vars: [],
 			epochs: 0,
 			epoch: 0,
@@ -49,6 +55,7 @@ class App extends React.Component<Props, OwnState> {
 		this.engine = new DiagramEngine();
 		this.engine.registerNodeFactory(new CodeNodeFactory());
 		this.engine.registerNodeFactory(new LayerNodeFactory());
+		this.engine.registerNodeFactory(new VariableNodeFactory());
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
@@ -57,6 +64,7 @@ class App extends React.Component<Props, OwnState> {
 			console.log(links);
 			console.log(vars);
 
+			vars.sort((a, b) => a.name.localeCompare(b.name));
 			this.setState({ vars });
 
 			const blockModels: { [x: string]: BaseNodeModel } = {};
@@ -94,35 +102,48 @@ class App extends React.Component<Props, OwnState> {
 					}
 				});
 				this.model.addLink(linkModel);
+				this.setState(prevState => ({
+					links: prevState.links.concat(linkModel)
+				}));
 			});
 
 			this.engine.zoomToFit();
 			this.forceUpdate();
 		});
 
-		API.on('blockCreate', bs => bs.forEach(b => this.addNodeForBlock(b)));
-		API.on('blockChange', bs => {
-			//
+		API.onBlockCreate(b => this.addNodeForBlock(b));
+		API.onBlockChange(b => {
+			console.log(b);
 		});
-		API.on('blockMove', bs =>
-			bs.forEach(b => {
-				const node = this.model.getNode(b.id) as BaseNodeModel;
-				if (!node) {
-					return;
-				}
-				node.pauseEvents();
-				node.x = b.x;
-				node.y = b.y;
-				node.resumeEvents();
-				this.forceUpdate();
-			})
-		);
+		API.onBlockMove(b => {
+			const node = this.model.getNode(b.id) as BaseNodeModel;
+			if (!node) {
+				return;
+			}
+			node.pauseEvents();
+			node.x = b.x;
+			node.y = b.y;
+			Object.keys(node.getPorts()).forEach(p => {
+				const port = node.ports[p];
+				const portCoords = this.engine.getPortCoords(port);
+				port.updateCoords(portCoords);
+			});
+			node.resumeEvents();
+			this.forceUpdate();
+		});
 	}
 
 	addNodeForBlock(b: Block) {
-		let node: BaseNodeModel = isCode(b)
-			? new CodeNodeModel(b)
-			: new LayerNodeModel(b.id);
+		let _node = null;
+		if (isCode(b)) {
+			_node = new CodeNodeModel(b);
+		} else if (isVar(b)) {
+			_node = new VariableNodeModel(b);
+		} else if (isLayer(b)) {
+			_node = new LayerNodeModel(b);
+		}
+
+		const node = _node as BaseNodeModel;
 
 		node.setPosition(b.x, b.y);
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
@@ -136,22 +157,26 @@ class App extends React.Component<Props, OwnState> {
 		});
 
 		this.model.addNode(node);
-		this.forceUpdate();
+		this.setState(prevState => ({
+			blocks: prevState.blocks.concat(node)
+		}));
+		// this.forceUpdate();
 		return node;
 	}
 
 	addCodeBlock(code: string = '') {
-		API.createBlock(code);
+		API.createBlock({ code });
+	}
+	addVariableBlock(name: string) {
+		API.createBlock({ var: name });
 	}
 
 	dragBlock(id: string, x: number, y: number) {
 		API.moveBlock(id, x, y);
 	}
-
 	changeCodeBlock(id: string, newCode: string) {
 		API.changeBlock(id, newCode);
 	}
-
 	deleteCodeBlock(id: string) {
 		if (confirm('Are you sure you want to delete this code block?')) {
 			API.deleteBlock(id);
@@ -189,7 +214,7 @@ class App extends React.Component<Props, OwnState> {
 							<div
 								key={v.name}
 								className="menu-var-entry"
-								onClick={() => this.addCodeBlock(`out = ${v.name}`)}
+								onClick={() => this.addVariableBlock(v.name)}
 							>
 								<div>{v.name}</div>
 								<div className="type">{v.type}</div>
@@ -203,6 +228,8 @@ class App extends React.Component<Props, OwnState> {
 							<DiagramWidget
 								className="diagram"
 								diagramEngine={this.engine}
+								allowLooseLinks={false}
+								smartRouting={false}
 								maxNumberPointsPerLink={0}
 							/>
 						)}

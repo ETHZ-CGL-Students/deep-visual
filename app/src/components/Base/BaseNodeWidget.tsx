@@ -29,7 +29,6 @@ export class BaseNodeWidget<
 	}
 
 	generatePort(port: BasePortModel) {
-		console.log(this.props.node.id, port.name);
 		return (
 			<BasetPortLabelWidget
 				key={port.id}

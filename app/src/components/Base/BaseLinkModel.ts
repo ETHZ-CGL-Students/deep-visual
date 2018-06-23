@@ -27,13 +27,15 @@ export class BaseLinkModel extends DefaultLinkModel {
 		}
 		this.sourcePort = port;
 
-		if (this.new && this.sourcePort && this.targetPort) {
-			API.createLink(
-				this.sourcePort.parent.id,
-				this.sourcePort.name,
-				this.targetPort.parent.id,
-				this.targetPort.name
-			);
+		if (this.sourcePort && this.targetPort) {
+			if (this.new) {
+				API.createLink(
+					this.sourcePort.parent.id,
+					this.sourcePort.name,
+					this.targetPort.parent.id,
+					this.targetPort.name
+				);
+			}
 		}
 	}
 
@@ -48,13 +50,15 @@ export class BaseLinkModel extends DefaultLinkModel {
 		}
 		this.targetPort = port;
 
-		if (this.new && this.sourcePort && this.targetPort) {
-			API.createLink(
-				this.sourcePort.parent.id,
-				this.sourcePort.name,
-				this.targetPort.parent.id,
-				this.targetPort.name
-			);
+		if (this.sourcePort && this.targetPort) {
+			if (this.new) {
+				API.createLink(
+					this.sourcePort.parent.id,
+					this.sourcePort.name,
+					this.targetPort.parent.id,
+					this.targetPort.name
+				);
+			}
 		}
 	}
 }

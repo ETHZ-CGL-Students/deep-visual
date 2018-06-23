@@ -9,7 +9,18 @@ export type Listener = () => void;
 export type SetParamsListener = (epochs: number, batches: number) => void;
 export type EpochBeginListener = (epoch: number) => void;
 export type BatchBeginListener = (batch: number) => void;
-export type BlockListener = (blocks: Block[]) => void;
+
+export type BlockListener = (blocks: Block) => void;
+export type BlocksListener = (blocks: Block[]) => void;
+
+export type PortListener = (id: string, port: string) => void;
+export type PortRenameListener = (
+	id: string,
+	port: string,
+	oldName: string
+) => void;
+
+export type LinkListener = (link: Link) => void;
 
 class API {
 	setParams: SetParamsListener[] = [];
@@ -17,12 +28,18 @@ class API {
 	trainEnd: Listener[] = [];
 	epochBegin: EpochBeginListener[] = [];
 	batchBegin: BatchBeginListener[] = [];
+
 	blockCreate: BlockListener[] = [];
 	blockChange: BlockListener[] = [];
 	blockMove: BlockListener[] = [];
 	blockDelete: BlockListener[] = [];
-	blockConnect: BlockListener[] = [];
-	blockDisconnect: BlockListener[] = [];
+
+	portCreate: PortListener[] = [];
+	portRename: PortRenameListener[] = [];
+	portDelete: PortListener[] = [];
+
+	linkCreate: LinkListener[] = [];
+	linkDelete: LinkListener[] = [];
 
 	constructor() {
 		// Subscribe to events
@@ -40,22 +57,35 @@ class API {
 		);
 
 		socket.on('block_create', (block: Block) =>
-			this.blockCreate.forEach(l => l([block]))
+			this.blockCreate.forEach(l => l(block))
 		);
 		socket.on('block_change', (block: Block) =>
-			this.blockChange.forEach(l => l([block]))
+			this.blockChange.forEach(l => l(block))
 		);
 		socket.on('block_move', (block: Block) =>
-			this.blockMove.forEach(l => l([block]))
+			this.blockMove.forEach(l => l(block))
 		);
 		socket.on('block_delete', (block: Block) =>
-			this.blockDelete.forEach(l => l([block]))
+			this.blockDelete.forEach(l => l(block))
 		);
-		socket.on('block_connect', (blocks: Block[]) =>
-			this.blockConnect.forEach(l => l(blocks))
+
+		socket.on('port_create', ({ id, port }: { id: string; port: string }) =>
+			this.portCreate.forEach(l => l(id, port))
 		);
-		socket.on('block_disconnect', (blocks: Block[]) =>
-			this.blockDisconnect.forEach(l => l(blocks))
+		socket.on(
+			'port_rename',
+			({ id, port, oldName }: { id: string; port: string; oldName: string }) =>
+				this.portRename.forEach(l => l(id, port, oldName))
+		);
+		socket.on('port_delete', ({ id, port }: { id: string; port: string }) =>
+			this.portDelete.forEach(l => l(id, port))
+		);
+
+		socket.on('link_create', (link: Link) =>
+			this.linkCreate.forEach(l => l(link))
+		);
+		socket.on('link_delete', (link: Link) =>
+			this.linkDelete.forEach(l => l(link))
 		);
 	}
 
@@ -77,17 +107,28 @@ class API {
 	}
 
 	// Block events
-	on(
-		event:
-			| 'blockCreate'
-			| 'blockChange'
-			| 'blockMove'
-			| 'blockDelete'
-			| 'blockConnect'
-			| 'blockDisconnect',
-		listener: BlockListener
-	) {
-		this[event].push(listener);
+	onBlockCreate(listener: BlockListener) {
+		this.blockCreate.push(listener);
+	}
+	onBlockChange(listener: BlockListener) {
+		this.blockChange.push(listener);
+	}
+	onBlockMove(listener: BlockListener) {
+		this.blockMove.push(listener);
+	}
+	onBlockDelete(listener: BlockListener) {
+		this.blockDelete.push(listener);
+	}
+
+	// Port events
+	onPortCreate(listener: PortListener) {
+		this.portCreate.push(listener);
+	}
+	onPortRename(listener: PortRenameListener) {
+		this.portRename.push(listener);
+	}
+	onPortDelete(listener: PortListener) {
+		this.portDelete.push(listener);
 	}
 
 	getData(
@@ -102,8 +143,8 @@ class API {
 		socket.emit('data', callback);
 	}
 
-	createBlock(code: string) {
-		socket.emit('block_create', { code });
+	createBlock(args: { code?: string; var?: string }) {
+		socket.emit('block_create', args);
 	}
 	changeBlock(id: string, code: string) {
 		socket.emit('block_change', { id, code });
