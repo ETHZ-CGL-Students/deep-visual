@@ -93,7 +93,7 @@ def run_train():
 
 
 # This is called to train the model
-@sio.on('start')
+@sio.on('train_start')
 def train():
     thread = Thread(target=run_train)
     thread.start()

@@ -1,31 +1,28 @@
-import { schema } from 'normalizr';
-
-import { BlocksState } from './reducers/blocks';
-import { VariablesState } from './reducers/variables';
-
 export interface Block {
+	class: 'LayerBlock' | 'CodeBlock';
 	id: string;
-	type: 'Layer' | 'Code';
 	x: number;
 	y: number;
-	prev: Block[];
-	next: Block[];
+	inputs: string[];
+	outputs: string[];
 	error: string;
 	out: any;
 }
 
-export interface Connection {
-	label: string;
-	from: Block;
-	to: Block;
+export interface Link {
+	id: string;
+	fromId: string;
+	fromPort: string;
+	toId: string;
+	toPort: string;
 }
 
 export interface LayerBlock extends Block {
-	layerType: string;
+	type: string;
 }
 
 export function isLayer(block: Block): block is LayerBlock {
-	return block.type === 'Layer';
+	return block.class === 'LayerBlock';
 }
 
 export interface CodeBlock extends Block {
@@ -33,7 +30,7 @@ export interface CodeBlock extends Block {
 }
 
 export function isCode(block: Block): block is CodeBlock {
-	return block.type === 'Code';
+	return block.class === 'CodeBlock';
 }
 
 export interface Layer {
@@ -57,15 +54,3 @@ export interface Variable {
 	name: string;
 	type: string;
 }
-
-export interface AppState {
-	blocks: BlocksState;
-	variables: VariablesState;
-}
-
-export const BlockSchema = new schema.Entity('blocks');
-
-BlockSchema.define({
-	prev: [BlockSchema],
-	next: [BlockSchema]
-});

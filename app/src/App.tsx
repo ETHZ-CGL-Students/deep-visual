@@ -1,108 +1,26 @@
 import * as React from 'react';
-import { DraggableData } from 'react-draggable';
-import { connect, Dispatch } from 'react-redux';
-import styled from 'styled-components';
-
-import { AppAction } from './actions';
 import {
-	requestChange,
-	requestConnect,
-	requestCreate,
-	requestDelete,
-	requestDisconnect,
-	requestEval,
-	requestList,
-	requestMove
-} from './actions/blocks';
-import { startTrain } from './actions/train';
-import { requestVariables } from './actions/variables';
-import { Arrow } from './components/Arrow';
-import { CodeBlockComp, LayerBlockComp } from './components/Blocks';
-import { getBlocks, getConnections } from './selectors/blocks';
-import { getVariables } from './selectors/variables';
-import {
-	AppState,
-	Block,
-	CodeBlock,
-	Connection,
-	isCode,
-	isLayer,
-	Variable
-} from './types';
+	DiagramEngine,
+	DiagramModel,
+	DiagramWidget
+} from 'storm-react-diagrams';
 
-const Wrapper = styled.div`
-	display: flex;
-	justify-content: space-between;
-	align-items: stretch;
-	align-content: stretch;
-	width: 100vw;
-	height: 100vh;
-	margin: 0;
-	padding: 0;
-`;
+import { Block, isCode, Variable } from './types';
 
-const Menu = styled.div`
-	display: flex;
-	flex: 0 0 0;
-	flex-direction: column;
-	justify-content: space-between;
-	align-items: stretch;
-	align-content: stretch;
-	width: 200px;
-	min-width: 200px;
-	height: 100%;
-	margin: 0;
-	padding: 10px 0 0 10px;
-	border-right: 1px solid black;
-	box-sizing: border-box;
-`;
+import { BaseLinkModel } from './components/Base/BaseLinkModel';
+import { BaseNodeModel } from './components/Base/BaseNodeModel';
+import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
+import { CodeNodeModel } from './components/Code/CodeNodeModel';
+import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
+import { LayerNodeModel } from './components/Layer/LayerNodeModel';
+import API from './services/api';
 
-const VarMenu = styled.div`
-	flex: 1;
-	overflow-y: scroll;
-	padding: 0 10px 0 0;
-`;
+const debounce = require('lodash.debounce');
 
-const VarEntry = styled.div`
-	display: flex;
-	justify-content: space-between;
-	&:hover {
-		cursor: pointer;
-		background-color: lightgrey;
-	}
-`;
-
-const VarType = styled.div`
-	color: grey;
-`;
-
-const Content = styled.div`
-	position: relative;
-	flex: 1;
-	height: 100%;
-	right: 0;
-	margin: 0;
-	padding: 10px;
-	box-sizing: border-box;
-`;
-
-interface Props {
-	blocks: Block[];
-	connections: Connection[];
-	vars: Variable[];
-	requestVariables: () => AppAction;
-	requestList: () => AppAction;
-	requestCreate: (code: string) => AppAction;
-	requestChange: (id: string, code: string) => AppAction;
-	requestMove: (id: string, x: number, y: number) => AppAction;
-	requestConnect: (from: string, to: string) => AppAction;
-	requestDisconnect: (from: string, to: string) => AppAction;
-	requestDelete: (id: string) => AppAction;
-	requestEval: (b: CodeBlock) => AppAction;
-	startTraining: () => AppAction;
-}
+interface Props {}
 
 interface OwnState {
+	vars: Variable[];
 	epochs: number;
 	epoch: number;
 	batches: number;
@@ -110,10 +28,14 @@ interface OwnState {
 }
 
 class App extends React.Component<Props, OwnState> {
+	engine: DiagramEngine;
+	model: DiagramModel;
+
 	constructor(props: Props) {
 		super(props);
 
 		this.state = {
+			vars: [],
 			epochs: 0,
 			epoch: 0,
 			batches: 0,
@@ -122,56 +44,136 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	componentDidMount() {
-		// window.addEventListener('keyup', e => this.handleKeyUp(e), false);
-		// this.props.requestModel();
-		this.props.requestVariables();
-		this.props.requestList();
+		this.model = new DiagramModel();
+
+		this.engine = new DiagramEngine();
+		this.engine.registerNodeFactory(new CodeNodeFactory());
+		this.engine.registerNodeFactory(new LayerNodeFactory());
+		this.engine.installDefaultFactories();
+		this.engine.setDiagramModel(this.model);
+
+		API.getData(({ blocks, links, vars }) => {
+			console.log(blocks);
+			console.log(links);
+			console.log(vars);
+
+			this.setState({ vars });
+
+			const blockModels: { [x: string]: BaseNodeModel } = {};
+			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
+
+			links.forEach(link => {
+				const from = blockModels[link.fromId].getPort(link.fromPort);
+				const to = blockModels[link.toId].getPort(link.toPort);
+				if (!from || !to) {
+					console.log('Could not create link: Port not found', link, from, to);
+					return;
+				}
+				const linkModel = new BaseLinkModel(link.id);
+				linkModel.setSourcePort(from);
+				linkModel.setTargetPort(to);
+				linkModel.addListener({
+					entityRemoved: () => API.deleteLink(linkModel.id),
+					sourcePortChanged: event => {
+						console.log(event);
+						/*API.createLink(
+							linkModel.getSourcePort().parent.id,
+							linkModel.getSourcePort().name,
+							linkModel.getTargetPort().parent.id,
+							linkModel.getTargetPort().name
+						);*/
+					},
+					targetPortChanged: event => {
+						console.log(event);
+						/*API.createLink(
+							linkModel.getSourcePort().parent.id,
+							linkModel.getSourcePort().name,
+							linkModel.getTargetPort().parent.id,
+							linkModel.getTargetPort().name
+						);*/
+					}
+				});
+				this.model.addLink(linkModel);
+			});
+
+			this.engine.zoomToFit();
+			this.forceUpdate();
+		});
+
+		API.on('blockCreate', bs => bs.forEach(b => this.addNodeForBlock(b)));
+		API.on('blockChange', bs => {
+			//
+		});
+		API.on('blockMove', bs =>
+			bs.forEach(b => {
+				const node = this.model.getNode(b.id) as BaseNodeModel;
+				if (!node) {
+					return;
+				}
+				node.pauseEvents();
+				node.x = b.x;
+				node.y = b.y;
+				node.resumeEvents();
+				this.forceUpdate();
+			})
+		);
+	}
+
+	addNodeForBlock(b: Block) {
+		let node: BaseNodeModel = isCode(b)
+			? new CodeNodeModel(b)
+			: new LayerNodeModel(b.id);
+
+		node.setPosition(b.x, b.y);
+		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
+		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
+		node.onRenamePort((port, oldName) =>
+			API.renamePort(b.id, port.in, oldName, port.name)
+		);
+		node.onDeletePort(port => API.deletePort(b.id, port.in, port.name));
+		node.addListener({
+			entityRemoved: () => API.deleteBlock(node.id)
+		});
+
+		this.model.addNode(node);
+		this.forceUpdate();
+		return node;
 	}
 
 	addCodeBlock(code: string = '') {
-		this.props.requestCreate(code);
+		API.createBlock(code);
 	}
 
-	dragBlock(block: Block, data: DraggableData) {
-		this.props.requestMove(block.id, data.x, data.y);
+	dragBlock(id: string, x: number, y: number) {
+		API.moveBlock(id, x, y);
 	}
 
-	changeCodeBlock(block: CodeBlock, newCode: string) {
-		this.props.requestChange(block.id, newCode);
+	changeCodeBlock(id: string, newCode: string) {
+		API.changeBlock(id, newCode);
 	}
 
-	deleteCodeBlock(block: CodeBlock) {
+	deleteCodeBlock(id: string) {
 		if (confirm('Are you sure you want to delete this code block?')) {
-			this.props.requestDelete(block.id);
+			API.deleteBlock(id);
 		}
 	}
 
-	connectBlocks(from: string, to: string) {
-		this.props.requestConnect(from, to);
-	}
-
-	removeConnection(conn: Connection) {
-		this.props.requestDisconnect(conn.from.id, conn.to.id);
-	}
-
-	componentWillUnmount() {
-		// window.removeEventListener('keyup', e => this.handleKeyUp(e), false);
+	eval(id: string) {
+		API.evalBlock(id, () => {
+			//
+		});
 	}
 
 	start() {
-		this.props.startTraining();
-	}
-
-	eval(block: CodeBlock) {
-		this.props.requestEval(block);
+		API.startTraining();
 	}
 
 	render() {
-		const { blocks, connections, vars } = this.props;
+		const { vars } = this.state;
 
 		return (
-			<Wrapper>
-				<Menu>
+			<div id="wrapper">
+				<div id="menu">
 					<div>
 						<button onClick={() => this.start()}>Train</button>&nbsp;
 						<button onClick={() => this.addCodeBlock()}>Add Code</button>
@@ -182,89 +184,32 @@ class App extends React.Component<Props, OwnState> {
 						<progress value={this.state.batch} max={this.state.batches} />
 					</div>
 					<h3>Variables</h3>
-					<VarMenu>
+					<div id="menu-var">
 						{vars.map(v => (
-							<VarEntry
+							<div
 								key={v.name}
+								className="menu-var-entry"
 								onClick={() => this.addCodeBlock(`out = ${v.name}`)}
 							>
 								<div>{v.name}</div>
-								<VarType>{v.type}</VarType>
-							</VarEntry>
+								<div className="type">{v.type}</div>
+							</div>
 						))}
-					</VarMenu>
-				</Menu>
-				<Content>
-					{connections.map(conn => (
-						<Arrow
-							key={conn.from.id + '-' + conn.to.id}
-							conn={conn}
-							onClick={() => this.removeConnection(conn)}
-						/>
-					))}
-					{blocks.map(b => this.renderBlock(b))}
-				</Content>
-			</Wrapper>
+					</div>
+				</div>
+				<div id="content">
+					{this.engine &&
+						this.model && (
+							<DiagramWidget
+								className="diagram"
+								diagramEngine={this.engine}
+								maxNumberPointsPerLink={0}
+							/>
+						)}
+				</div>
+			</div>
 		);
-	}
-
-	renderBlock(b: Block) {
-		if (isLayer(b)) {
-			return (
-				<LayerBlockComp
-					key={b.id}
-					trackDrag
-					onDrag={d => this.dragBlock(b, d)}
-					onConnect={(f, t) => this.connectBlocks(f, t)}
-					block={b}
-				/>
-			);
-		} else if (isCode(b)) {
-			return (
-				<CodeBlockComp
-					key={b.id}
-					trackDrag
-					onChange={c => this.changeCodeBlock(b, c)}
-					onDrag={d => this.dragBlock(b, d)}
-					onDelete={() => this.deleteCodeBlock(b)}
-					onConnect={(f, t) => this.connectBlocks(f, t)}
-					onEval={bl => this.eval(bl)}
-					block={b}
-				/>
-			);
-		}
-		return null;
 	}
 }
 
-const mapStateToProps = (state: AppState) => {
-	return {
-		blocks: getBlocks(state),
-		connections: getConnections(state),
-		vars: getVariables(state)
-	};
-};
-
-const mapDispatchToProps = (dispatch: Dispatch<AppAction>) => {
-	return {
-		requestVariables: (): AppAction => dispatch(requestVariables()),
-		requestList: (): AppAction => dispatch(requestList()),
-		requestCreate: (code: string): AppAction => dispatch(requestCreate(code)),
-		requestChange: (id: string, code: string): AppAction =>
-			dispatch(requestChange(id, code)),
-		requestMove: (id: string, x: number, y: number): AppAction =>
-			dispatch(requestMove(id, x, y)),
-		requestConnect: (from: string, to: string): AppAction =>
-			dispatch(requestConnect(from, to)),
-		requestDisconnect: (from: string, to: string): AppAction =>
-			dispatch(requestDisconnect(from, to)),
-		requestDelete: (id: string): AppAction => dispatch(requestDelete(id)),
-		requestEval: (b: CodeBlock): AppAction => dispatch(requestEval(b)),
-		startTraining: (): AppAction => dispatch(startTrain())
-	};
-};
-
-export default connect(
-	mapStateToProps,
-	mapDispatchToProps
-)(App);
+export default App;

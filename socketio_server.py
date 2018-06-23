@@ -14,6 +14,7 @@ import numpy as np
 import tensorflow as tf
 
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 from types import ModuleType
 from threading import Thread
 from flask import Flask
@@ -82,7 +83,7 @@ def serialize(data):
         return list(map(serialize, data))
     elif isinstance(data, dict):
         return {k: serialize(v) for k, v in data.items()}
-    return json.dumps(data)
+    return MyJSONWrapper.dumps(data)
 
 
 def serialize_matrix(mat):
@@ -169,28 +170,55 @@ def serialize_tensorshape(tensorshape):
     return {'dims': dims, 'nDims': tensorshape.ndims}
 
 
+class Link(object):
+    """ Links together two blocks """
+
+    def __init__(self,
+                 fromBlock,
+                 fromPort,
+                 toBlock,
+                 toPort,
+                 implicit=False,
+                 id=None):
+        self.id = id if id is not None else str(uuid.uuid4())
+        self.implicit = implicit
+        self.fromBlock = fromBlock
+        self.fromPort = fromPort
+        self.toBlock = toBlock
+        self.toPort = toPort
+
+    def to_json(self):
+        return {
+            'class': 'Link',
+            'id': self.id,
+            'fromId': self.fromBlock.id,
+            'fromPort': self.fromPort,
+            'toId': self.toBlock.id,
+            'toPort': self.toPort
+        }
+
+
 class Block(metaclass=ABCMeta):
     """ An arbitrary block of something """
 
-    def __init__(self, type, id=None, x=10, y=10, prev=None, nxt=None):
+    def __init__(self, id=None, x=10, y=10):
         self.id = id if id is not None else str(uuid.uuid4())
-        self.type = type
-        self.locked = False
         self.x = x
         self.y = y
-        self.prev = prev if prev is not None else []
-        self.next = nxt if nxt is not None else []
+        # We use ordered dicts so our ports don't change order
+        self.outputs = OrderedDict()
+        self.inputs = OrderedDict()
 
     def to_json(self):
         """ This is called by our custom json serializer """
 
         return {
+            'class': 'Block',
             'id': self.id,
-            'type': self.type,
             'x': self.x,
             'y': self.y,
-            'prev': list(map(lambda b: b.id, self.prev)),
-            'next': list(map(lambda b: b.id, self.next))
+            'outputs': list(self.outputs.keys()),
+            'inputs': list(self.inputs.keys())
         }
 
     @abstractmethod
@@ -202,18 +230,24 @@ class Block(metaclass=ABCMeta):
 class CodeBlock(Block):
     """ An arbitrary block of code in the editor that can be executed and connected """
 
-    def __init__(self, code='', x=10, y=10, prev=None, nxt=None, data=None):
+    def __init__(self, code='', x=10, y=10, data=None):
         if data is not None:
             self.__dict__ = data
+            self.inputs = OrderedDict(
+                map(lambda input: (input, None), self.inputs))
+            self.outputs = OrderedDict(
+                map(lambda output: (output, []), self.outputs))
         else:
-            super(CodeBlock, self).__init__(
-                type='Code', x=x, y=y, prev=prev, nxt=nxt)
+            super(CodeBlock, self).__init__(x=x, y=y)
+            self.inputs = OrderedDict([('x0', None)])
+            self.outputs = OrderedDict([('y0', [])])
             self.code = code
 
     def to_json(self):
         """ This is called by our custom json serializer """
 
         json = super(CodeBlock, self).to_json()
+        json['class'] = 'CodeBlock'
         json['code'] = self.code
         return json
 
@@ -230,7 +264,7 @@ class CodeBlock(Block):
         out = ls.pop('out', None)
 
         # Clear the input we set
-        ls.pop('input')
+        ls.pop('input', None)
 
         # Return our results
         return out
@@ -239,16 +273,19 @@ class CodeBlock(Block):
 class LayerBlock(Block):
     """ An block representing a layer of a model """
 
-    def __init__(self, layer, x=10, y=10, prev=None, nxt=None):
-        super(LayerBlock, self).__init__(
-            id=layer.name, type='Layer', x=x, y=y, prev=prev, nxt=nxt)
+    def __init__(self, layer, x=10, y=10):
+        super(LayerBlock, self).__init__(id=layer.name, x=x, y=y)
         self.layer = layer
+        self.inputs = OrderedDict([('input', None)])
+        self.outputs = OrderedDict([('output', []), ('bias', []), ('weights',
+                                                                   [])])
 
     def to_json(self):
         """ This is called by our custom json serializer """
 
         json = super(LayerBlock, self).to_json()
-        json['layerType'] = type(self.layer).__name__
+        json['class'] = 'LayerBlock'
+        json['type'] = type(self.layer).__name__
         return json
 
     def eval(self, gs, ls, input):
@@ -259,45 +296,64 @@ class LayerBlock(Block):
 vars = {}
 # Blocks of code
 blocks = []
+# Links between blocks
+links = []
 
 
-def saveBlocks():
-    with open('save/blocks.json', 'w') as outfile:
-        codeBlocks = [b for b in blocks if b.type == 'Code']
-        json.dump(codeBlocks, outfile, cls=MyJSONEncoder)
+def saveData():
+    with open('save/data.json', 'w') as outfile:
+        bs = [b for b in blocks if not isinstance(b, LayerBlock)]
+        ls = [l for l in links if l.implicit == False]
+        obj = {'blocks': bs, 'links': ls}
+        json.dump(obj, outfile, cls=MyJSONEncoder)
 
 
-def loadBlocks():
+def parseDataObject(d):
+    if 'class' not in d:
+        return d
+
+    # Only parse the blocks at this stage, because links have id refs to
+    # the blocks, and we don't have all the blocks yet, so we can resolve the refs
+    if d['class'] == 'CodeBlock':
+        return CodeBlock(data=d)
+
+    return d
+
+
+def loadData():
     try:
-        with open('save/blocks.json', 'r') as infile:
+        with open('save/data.json', 'r') as infile:
+            global links
             global blocks
             # Parse all the code blocks from file
-            data = json.load(infile, object_hook=lambda d: CodeBlock(data=d))
-            # Add the code blocks to the main blocks array
-            blocks.extend(data)
-            # Fix the 'prev' and 'next' arrays for all the code blocks,
-            # because in the JSON they are id references
-            for block in blocks:
-                if block.type != 'Code':
-                    pass
-                else:
-                    prevs = block.prev
-                    block.prev = []
-                    for pId in prevs:
-                        pBlock = next((b for b in blocks if b.id == pId), None)
-                        if pBlock is not None:
-                            block.prev.append(pBlock)
-                            if pBlock.type != 'Code':
-                                pBlock.next.append(block)
+            data = json.load(infile, object_hook=parseDataObject)
+            print(data)
 
-                    nexts = block.next
-                    block.next = []
-                    for nId in nexts:
-                        nBlock = next((b for b in blocks if b.id == nId), None)
-                        if nBlock is not None:
-                            block.next.append(nBlock)
-                            if nBlock.type != 'Code':
-                                nBlock.next.append(block)
+            # Add the code blocks to the main blocks array
+            blocks.extend(data['blocks'])
+
+            # Parse the links, now that we have all the blocks ready
+            for l in data['links']:
+                fromBlock = next((b for b in blocks if b.id == l['fromId']),
+                                 None)
+                if fromBlock is None:
+                    print('link_create: Invalid block id ' + l['fromId'])
+                    return
+
+                toBlock = next((b for b in blocks if b.id == l['toId']), None)
+                if toBlock is None:
+                    print('link_create: Invalid block id ' + l['toId'])
+                    return
+
+                fromPort = l['fromPort']
+                toPort = l['toPort']
+
+                link = Link(fromBlock, fromPort, toBlock, toPort)
+                links.append(link)
+
+                fromBlock.outputs[fromPort].append(link)
+                toBlock.inputs[toPort] = link
+
     except FileNotFoundError:
         pass
 
@@ -314,10 +370,10 @@ def disconnect():
     print('disconnect')
 
 
-# List of all blocks
-@sio.on('block_list')
-def getBlocks():
-    return blocks
+# Get all data (blocks, links and variables)
+@sio.on('data')
+def getData():
+    return {'blocks': blocks, 'links': links, 'vars': []}
 
 
 # Creating a new block
@@ -326,77 +382,58 @@ def addBlock(args):
     newBlock = CodeBlock(args['code'])
     blocks.append(newBlock)
     sio.emit('block_create', data=newBlock.to_json())
-    saveBlocks()
+    saveData()
 
 
 # Edit code of a block
 @sio.on('block_change')
 def editBlock(args):
     block = next((b for b in blocks if b.id == args['id']), None)
-    if block is not None:
+    if block is None:
+        return
+
+    if isinstance(block, CodeBlock) and 'code' in args:
         block.code = args['code']
-        sio.emit('block_change', data=block.to_json())
-        saveBlocks()
+
+    sio.emit('block_change', data=block.to_json())
+    saveData()
 
 
 # Move block around
 @sio.on('block_move')
 def moveBlock(args):
     block = next((b for b in blocks if b.id == args['id']), None)
-    if block is not None:
-        block.x = args['x']
-        block.y = args['y']
-        sio.emit('block_move', data=block.to_json())
-
-
-# Connecting blocks together
-@sio.on('block_connect')
-def connectBlocks(args):
-    blockFrom = next((b for b in blocks if b.id == args['from']), None)
-    blockTo = next((b for b in blocks if b.id == args['to']), None)
-    if blockFrom is None or blockTo is None or blockFrom == blockTo:
+    if block is None:
         return
 
-    alreadyHas = next((n for n in blockFrom.next if n.id == blockTo.id), None)
-    if alreadyHas is not None:
-        return
-
-    blockFrom.next.append(blockTo)
-    blockTo.prev.append(blockFrom)
-    sio.emit('block_connect', data=[blockFrom.to_json(), blockTo.to_json()])
-    saveBlocks()
-
-
-# Disconnecting blocks
-@sio.on('block_disconnect')
-def disconnectBlocks(args):
-    blockFrom = next((b for b in blocks if b.id == args['from']), None)
-    blockTo = next((b for b in blocks if b.id == args['to']), None)
-    if blockFrom is None or blockTo is None or blockFrom == blockTo:
-        return
-
-    blockFrom.next.remove(blockTo)
-    blockTo.prev.remove(blockFrom)
-    sio.emit('block_disconnect', data=[blockFrom.to_json(), blockTo.to_json()])
-    saveBlocks()
+    block.x = args['x']
+    block.y = args['y']
+    sio.emit('block_move', data=block.to_json())
 
 
 # Deleting blocks
 @sio.on('block_delete')
 def deleteBlock(args):
-    global blocks
     block = next((b for b in blocks if b.id == args['id']), None)
-    if block is not None:
-        # Remove connections on 'next' blocks to this one
-        for b in block.next:
-            b.prev.remove(block)
-        # Remove connections on 'prev' blocks to this one
-        for b in block.prev:
-            b.next.remove(block)
-        # Remove from blocks array
-        blocks = [b for b in blocks if b.id != args['id']]
-        sio.emit('block_delete', data=block.to_json())
-        saveBlocks()
+    if block is None:
+        return
+
+    # Remove all links to this block
+    for portName in block.inputs:
+        link = block.inputs[portName]
+        link.fromBlock.outputs[link.fromPort].remove(link)
+        links.remove(link)
+
+    # Remove all links from this block
+    for portName in block.outputs:
+        for link in block.outputs[portName]:
+            link.toBlock.inputs[link.toPort] = None
+            links.remove(link)
+
+    # Remove from blocks array
+    blocks.remove(block)
+    sio.emit('block_delete', data=block.to_json())
+    saveData()
 
 
 # Evaluating a block (="running")
@@ -453,6 +490,135 @@ def evalBlock(args):
         return [tb.format_exc(), None]
 
 
+# Creating a port
+@sio.on('port_create')
+def createPort(args):
+    block = next((b for b in blocks if b.id == args['id']), None)
+    if block is None:
+        print('port_create: Invalid block id ' + args['id'])
+        return
+
+    portName = args['name']
+    if args['input'] == True:
+        if portName in block.inputs:
+            print('port_create: Port name in use: ' + portName)
+            return
+        block.inputs[portName] = None
+    else:
+        if portName in block.outputs:
+            print('port_create: Port name in use: ' + portName)
+            return
+        block.outputs[portName] = []
+
+    sio.emit('block_change', data=block.to_json())
+    saveData()
+
+
+# Renaming a port
+@sio.on('port_rename')
+def renamePort(args):
+    block = next((b for b in blocks if b.id == args['id']), None)
+    if block is None:
+        print('port_rename: Invalid block id ' + args['id'])
+        return
+
+    oldName = args['oldName']
+    newName = args['newName']
+    if args['input'] == True:
+        block.inputs = OrderedDict([(newName, v) if k == oldName else (k, v)
+                                    for k, v in block.inputs.items()])
+        # block.inputs[newName] = block.inputs.pop(oldName, None)
+    else:
+        block.outputs = OrderedDict([(newName, v) if k == oldName else (k, v)
+                                     for k, v in block.outputs.items()])
+        # block.outputs[newName] = block.outputs.pop(oldName, None)
+
+    sio.emit('block_change', data=block.to_json())
+    saveData()
+
+
+# Deleting a port
+# TODO: Clean up the links that this port had
+@sio.on('port_delete')
+def deletePort(args):
+    block = next((b for b in blocks if b.id == args['id']), None)
+    if block is None:
+        print('port_delete: Invalid block id ' + args['id'])
+        return
+
+    portName = args['name']
+    if args['input'] == True:
+        block.inputs.pop(portName, None)
+    else:
+        block.outputs.pop(portName, None)
+
+    sio.emit('block_change', data=block.to_json())
+    saveData()
+
+
+# Connecting blocks together
+@sio.on('link_create')
+def createLink(args):
+    fromBlock = next((b for b in blocks if b.id == args['fromId']), None)
+    if fromBlock is None:
+        print('link_create: Invalid block id ' + args['fromId'])
+        return
+
+    toBlock = next((b for b in blocks if b.id == args['toId']), None)
+    if toBlock is None:
+        print('link_create: Invalid block id ' + args['toId'])
+        return
+
+    fromPort = args['fromPort']
+    if fromPort not in fromBlock.outputs:
+        print('link_create: Invalid output port ' + fromPort + ' on block ' +
+              fromBlock.id)
+        return
+    toPort = args['toPort']
+    if toPort not in toBlock.inputs:
+        print('link_create: Invalid input port ' + toPort + ' on block ' +
+              toBlock.id)
+        return
+
+    alreadyHas = next((l for l in fromBlock.outputs[fromPort]
+                       if l.toBlock == toBlock and l.toPort == toPort), None)
+    if alreadyHas is not None:
+        print('link_create: ' + fromBlock.id + ' already connects to ' +
+              toBlock.id + ' from port ' + fromPort + ' to port ' + toPort)
+        return
+
+    link = Link(fromBlock, fromPort, toBlock, toPort)
+    links.append(link)
+
+    fromBlock.outputs[fromPort].append(link)
+    # TODO: Remove any previously existing links on the in port
+    toBlock.inputs[toPort] = link
+
+    sio.emit('link_create', data=link.to_json())
+    saveData()
+
+
+# Disconnecting blocks
+@sio.on('link_delete')
+def deleteLink(args):
+    global links
+
+    # Find link
+    link = next((l for l in links if l.id == args['id']), None)
+    if link is None:
+        print('link_delete: Invalid link id ' + args['id'])
+        return
+
+    # Remove link from blocks
+    link.toBlock.inputs[link.toPort] = None
+    link.fromBlock.outputs[link.fromPort].remove(link)
+
+    # Delete link
+    links.remove(link)
+    sio.emit('link_delete', data=link.to_json())
+    saveData()
+
+
 class FitCallback(keras.callbacks.Callback):
     """ Callback used inside the 'fit' method of keras, to 
     update our client with progress on the training """
@@ -485,22 +651,34 @@ def expose_model(model):
     for layer in model.layers:
         blocks.append(LayerBlock(layer, x=i * 200))
         i += 1
+
     # Link the layers 'prev' and 'next'
+    done = {}
     for layer in model.layers:
+        # Find the next layer by looking for a layer with the same 'input' as this 'output'
         p = next((l.name for l in model.layers if l.output == layer.input),
                  None)
         prev = next((b for b in blocks if b.id == p), None)
 
+        # Find the previous layer by looking for a layer with the same 'output' as this 'input'
         n = next((l.name for l in model.layers if l.input == layer.output),
                  None)
         nxt = next((b for b in blocks if b.id == n), None)
 
         for b in blocks:
             if b.id == layer.name:
-                if prev is not None:
-                    b.prev = [prev]
-                if nxt is not None:
-                    b.next = [nxt]
+                if prev is not None and (prev.id + '-' + b.id) not in done:
+                    link = Link(prev, 'output', b, 'input', implicit=True)
+                    links.append(link)
+                    b.inputs['input'] = link
+                    prev.outputs['output'].append(link)
+                    done[(prev.id + '-' + b.id)] = link
+                if nxt is not None and (b.id + '-' + nxt.id) not in done:
+                    link = Link(b, 'output', nxt, 'input', implicit=True)
+                    links.append(link)
+                    b.outputs['output'].append(link)
+                    nxt.inputs['input'] = link
+                    done[b.id + '-' + nxt.id] = link
                 break
 
 
@@ -515,13 +693,6 @@ def expose_variables(newVars):
             continue
         vars[key] = value
 
-    @sio.on('variables')
-    def getModel():
-        ret = []
-        for key, value in vars.items():
-            ret.append(serialize_variable(key, value))
-        return ret
-
 
 def start():
     """ Start our webserver and return the socket.io 
@@ -530,7 +701,7 @@ def start():
     # We wait with loading blocks until here so that the model layers
     # are exposed, because they might be referenced in one of the
     # code blocks 'next' or 'prev' arrays
-    loadBlocks()
+    loadData()
 
     def thread_run():
         sio.run(app, port=8080)
