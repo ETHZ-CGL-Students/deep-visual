@@ -30,7 +30,13 @@ export class CodeNodeWidget extends BaseNodeWidget<
 
 	renderContent() {
 		return (
-			<div onClick={() => this.props.node.setSelected(false)}>
+			<div
+				onMouseDown={e => {
+					e.stopPropagation();
+					e.preventDefault();
+				}}
+				style={{ cursor: 'text' }}
+			>
 				<button style={{ width: '100%' }} onClick={() => this.onRun()}>
 					Run
 				</button>
