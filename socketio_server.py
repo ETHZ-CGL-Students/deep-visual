@@ -52,8 +52,7 @@ class MyJSONWrapper(object):
 # sio is used when running on the main thread
 # socketio is used in off-main threads and transfers data via redis to 'sio'
 app = Flask(__name__)
-sio = SocketIO(app, message_queue='redis://', json=MyJSONWrapper)
-socketio = SocketIO(message_queue='redis://', json=MyJSONWrapper)
+sio = SocketIO(app, json=MyJSONWrapper)
 
 
 # Context manager allows us to capture 'print' statements and other output
@@ -185,10 +184,12 @@ class CodeBlock(Block):
         return json
 
     def eval(self, gs, ls):
-        out = None
-
         # Run our custom code
-        exec(self.code, gs, ls)
+        with stdoutIO() as s:
+            exec(self.code, gs, ls)
+
+        # Print statements to console. We could also return them or something...
+        print(self.id + ': ' + s)
 
         # Return the "local" variables which contain our results
         return ls
@@ -331,17 +332,16 @@ def getData():
 # Creating a new block
 @sio.on('block_create')
 def addBlock(args):
-    print(args)
     if 'code' in args:
         newBlock = CodeBlock(args['code'])
         blocks.append(newBlock)
-        sio.emit('block_create', data=newBlock.to_json())
+        sio.emit('block_create', data=newBlock)
     elif 'var' in args:
         name = args['var']
         value = vars[name]
         newBlock = VariableBlock(name, value)
         blocks.append(newBlock)
-        sio.emit('block_create', data=newBlock.to_json())
+        sio.emit('block_create', data=newBlock)
     saveData()
 
 
@@ -355,7 +355,8 @@ def editBlock(args):
     if isinstance(block, CodeBlock) and 'code' in args:
         block.code = args['code']
 
-    sio.emit('block_change', data=block.to_json())
+    print(block)
+    sio.emit('block_change', data=block)
     saveData()
 
 
@@ -368,7 +369,7 @@ def moveBlock(args):
 
     block.x = args['x']
     block.y = args['y']
-    sio.emit('block_move', data=block.to_json())
+    sio.emit('block_move', data=block)
     saveData()
 
 
@@ -394,7 +395,7 @@ def deleteBlock(args):
 
     # Remove from blocks array
     blocks.remove(block)
-    sio.emit('block_delete', data=block.to_json())
+    sio.emit('block_delete', data=block)
     saveData()
 
 
@@ -561,7 +562,7 @@ def createLink(args):
     # TODO: Remove any previously existing links on the in port
     toBlock.inputs[toPort] = link
 
-    sio.emit('link_create', data=link.to_json())
+    sio.emit('link_create', data=link)
     saveData()
 
 
@@ -582,32 +583,8 @@ def deleteLink(args):
 
     # Delete link
     links.remove(link)
-    sio.emit('link_delete', data=link.to_json())
+    sio.emit('link_delete', data=link)
     saveData()
-
-
-class FitCallback(keras.callbacks.Callback):
-    """ Callback used inside the 'fit' method of keras, to 
-    update our client with progress on the training """
-    last_time = 0
-
-    def set_params(self, params):
-        socketio.emit('set_params', params)
-
-    def on_train_begin(self, logs={}):
-        socketio.emit('train_begin', logs)
-
-    def on_train_end(self, logs={}):
-        socketio.emit('train_end', logs)
-
-    def on_batch_begin(self, batch, logs={}):
-        if (time.time() - self.last_time < 1):
-            return
-        socketio.emit('batch_begin', batch)
-        self.last_time = time.time()
-
-    def on_epoch_begin(self, epoch, logs={}):
-        socketio.emit('epoch_begin', epoch)
 
 
 def expose_model(model):

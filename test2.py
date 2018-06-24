@@ -50,55 +50,12 @@ model.evaluate(x_test, y_test, verbose=1)
 
 model.summary()
 
-graph = tf.get_default_graph()
-
 # Expose our model to the web
 expose_model(model)
 # Expose our local variables
 expose_variables(locals())
 
-
-# This is called to evaluate on a tensor
-@sio.on('eval')
-def eval(layer=-1, input=True):
-    # Use 'with' to switch to the correct graph, because of threading
-    with graph.as_default():
-        output = model.layers[layer].input if (input == True) else (
-            model.layers[layer].output)
-        nmodel = Model(inputs=[model.input], outputs=[output])
-        nmodel.compile(
-            loss='categorical_crossentropy',
-            optimizer=RMSprop(),
-            metrics=['accuracy'])
-        res = nmodel.predict(
-            x=np.array([x_test[0]]), batch_size=batch_size, verbose=1)
-        return serialize_matrix(res)
-
-
-# The function that is run to train the keras model, from a separate thread
-def run_train():
-    # Use 'with' to switch to the correct graph, because of threading
-    with graph.as_default():
-        model.fit(
-            x_train,
-            y_train,
-            batch_size=batch_size,
-            epochs=epochs,
-            verbose=1,
-            validation_data=(x_test, y_test),
-            callbacks=[FitCallback()])
-        score = model.evaluate(x_test, y_test, verbose=1)
-        print('Test loss:', score[0])
-        print('Test accuracy:', score[1])
-
-
-# This is called to train the model
-@sio.on('train_start')
-def train():
-    thread = Thread(target=run_train)
-    thread.start()
-
-
+# Start the web-app
 start()
 
 # time.sleep(30)
