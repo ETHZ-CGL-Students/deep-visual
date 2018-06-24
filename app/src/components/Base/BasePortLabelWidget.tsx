@@ -41,7 +41,11 @@ export class BasetPortLabelWidget extends BaseWidget<
 
 		const port = <PortWidget node={model.getParent()} name={model.name} />;
 		const label = (
-			<div className="name" onDoubleClick={() => this.changeName()}>
+			<div
+				className="name"
+				onDoubleClick={() => this.changeName()}
+				style={{ padding: '0 10px' }}
+			>
 				{model.label}
 			</div>
 		);

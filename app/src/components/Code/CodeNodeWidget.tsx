@@ -29,19 +29,28 @@ export class CodeNodeWidget extends BaseNodeWidget<
 	}
 
 	renderContent() {
+		const { node } = this.props;
+
 		return (
 			<div
 				onMouseDown={e => {
 					e.stopPropagation();
 					e.preventDefault();
+					node.setSelected(false);
 				}}
 				style={{ cursor: 'text' }}
 			>
-				<button style={{ width: '100%' }} onClick={() => this.onRun()}>
+				<button
+					disabled={node.running}
+					style={{ width: '100%', cursor: 'pointer' }}
+					onClick={() => this.onRun()}
+				>
 					Run
 				</button>
+				<div style={{ color: 'red' }}>{node.err}</div>
+				<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
 				<CodeMirror
-					value={this.props.node.code}
+					value={node.code}
 					onChange={c => this.onChange(c)}
 					options={{ mode: 'python' }}
 				/>

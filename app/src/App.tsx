@@ -141,9 +141,14 @@ class App extends React.Component<Props, OwnState> {
 				API.changeBlock(b.id, _node.code);
 			});
 			_node.onRun(() => {
+				_node.err = null;
+				_node.out = null;
+				_node.running = true;
 				API.evalBlock(b.id, (err, out) => {
-					console.log(err);
-					console.log(out);
+					_node.err = err;
+					_node.out = out;
+					_node.running = false;
+					this.forceUpdate();
 				});
 			});
 		} else if (isVar(b)) {

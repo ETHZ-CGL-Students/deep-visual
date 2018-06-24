@@ -358,7 +358,6 @@ def editBlock(args):
     if isinstance(block, CodeBlock) and 'code' in args:
         block.code = args['code']
 
-    print(block)
     sio.emit('block_change', data=block)
     saveData()
 
@@ -422,7 +421,9 @@ def evalBlock(args):
     todo = [block]
     while len(todo) > 0:
         b = todo.pop()
-        ins = list(map(lambda l: l.fromBlock, b.inputs.values()))
+        ins = list(
+            map(lambda l: l.fromBlock,
+                filter(lambda l: l is not None, b.inputs.values())))
         bs.extend(ins)
         todo.extend(ins)
 
@@ -438,9 +439,24 @@ def evalBlock(args):
             # Use our exposed variables as the local variables inside the block eval
             ls = vars
 
-            # Get inputs from links
+            # Cache any variables that we might overwrite
+            # so that we don't actually change any values
+            cache = {}
+
+            # Set inputs from links
             for k, l in b.inputs.items():
-                ls[k] = outs[l.fromBlock.id][l.fromPort]
+                if k in ls:
+                    cache[k] = ls[k]
+                if l is None:
+                    ls[k] = None
+                else:
+                    ls[k] = outs[l.fromBlock.id][l.fromPort]
+
+            # Clear outputs for this node
+            for k in b.outputs.keys():
+                if k in ls:
+                    cache[k] = ls[k]
+                ls[k] = None
 
             # Run the function
             out = b.eval(gs, ls)
@@ -449,6 +465,10 @@ def evalBlock(args):
             outs[b.id] = {}
             for k in b.outputs.keys():
                 outs[b.id][k] = out[k]
+
+            # Restore any cached values
+            for k, v in cache.items():
+                ls[k] = v
 
         # Get the output for the block we ran the eval socket.io event
         res = outs[block.id]

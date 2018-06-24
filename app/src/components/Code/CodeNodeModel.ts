@@ -4,6 +4,9 @@ import { BasePortModel } from '../Base/BasePortModel';
 
 export class CodeNodeModel extends BaseNodeModel {
 	code: string;
+	err: string | null;
+	out: string | null;
+	running: boolean;
 	protected changeListener?: () => void;
 	protected runListener?: () => void;
 
@@ -12,6 +15,7 @@ export class CodeNodeModel extends BaseNodeModel {
 
 		this.code = block.code;
 		this.color = 'rgb(0,192,255)';
+		this.running = false;
 
 		// Events aren't triggered in the constructor, so we can safely add the ports
 		block.inputs.forEach(k => {

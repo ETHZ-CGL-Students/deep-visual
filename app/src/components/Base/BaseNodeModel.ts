@@ -102,4 +102,11 @@ export class BaseNodeModel extends NodeModel {
 			this.moveListener();
 		}
 	}
+
+	remove() {
+		if (!confirm('Are you sure you want to delete this block?')) {
+			return;
+		}
+		super.remove();
+	}
 }
