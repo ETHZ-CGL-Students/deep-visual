@@ -10,7 +10,7 @@ from keras.models import Sequential, Model, load_model
 from keras.optimizers import RMSprop
 from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten
 
-from socketio_server import expose_model, expose_variables, serialize_matrix, FitCallback, sio, start
+from socketio_server import expose_model, expose_variables, start
 
 # -- Test model #1
 # if os.path.isfile("save/model.h5"):
