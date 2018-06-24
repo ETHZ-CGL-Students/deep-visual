@@ -77,7 +77,7 @@ class App extends React.Component<Props, OwnState> {
 					console.log('Could not create link: Port not found', link, from, to);
 					return;
 				}
-				const linkModel = new BaseLinkModel(link.id);
+				const linkModel = new BaseLinkModel(link);
 				linkModel.setSourcePort(from);
 				linkModel.setTargetPort(to);
 				linkModel.addListener({

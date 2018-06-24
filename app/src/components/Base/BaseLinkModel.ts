@@ -1,17 +1,21 @@
 import { DefaultLinkModel, PortModel } from 'storm-react-diagrams';
 
 import API from '../../services/api';
+import { Link } from '../../types';
 
 export class BaseLinkModel extends DefaultLinkModel {
 	new: boolean;
+	implicit: boolean;
 
-	constructor(id?: string) {
+	constructor(link?: Link) {
 		super();
 
-		if (id) {
-			this.id = id;
+		if (link) {
+			this.id = link.id;
+			this.implicit = link.implicit;
 			this.new = false;
 		} else {
+			this.implicit = false;
 			this.new = true;
 		}
 	}
@@ -60,5 +64,12 @@ export class BaseLinkModel extends DefaultLinkModel {
 				);
 			}
 		}
+	}
+
+	remove() {
+		if (this.implicit) {
+			return;
+		}
+		super.remove();
 	}
 }

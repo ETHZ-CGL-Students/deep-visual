@@ -13,4 +13,9 @@ export class LayerNodeModel extends BaseNodeModel {
 		this.addPort(new BasePortModel(false, 'bias'));
 		this.addPort(new BasePortModel(false, 'weights'));
 	}
+
+	// Don't allow deleting layer nodes
+	remove() {
+		return;
+	}
 }

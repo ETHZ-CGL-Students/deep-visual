@@ -11,6 +11,7 @@ export interface Block {
 
 export interface Link {
 	id: string;
+	implicit: boolean;
 	fromId: string;
 	fromPort: string;
 	toId: string;

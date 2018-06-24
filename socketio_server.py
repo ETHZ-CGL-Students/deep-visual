@@ -123,6 +123,7 @@ class Link(object):
         return {
             'class': 'Link',
             'id': self.id,
+            'implicit': self.implicit,
             'fromId': self.fromBlock.id,
             'fromPort': self.fromPort,
             'toId': self.toBlock.id,
@@ -189,7 +190,9 @@ class CodeBlock(Block):
             exec(self.code, gs, ls)
 
         # Print statements to console. We could also return them or something...
-        print(self.id + ': ' + s)
+        out = s.getvalue()
+        if len(out) > 0:
+            print(self.id + ': ' + out)
 
         # Return the "local" variables which contain our results
         return ls
@@ -378,6 +381,11 @@ def moveBlock(args):
 def deleteBlock(args):
     block = next((b for b in blocks if b.id == args['id']), None)
     if block is None:
+        print('block_delete: Could not find block ' + args['id'])
+        return
+
+    if isinstance(block, LayerBlock):
+        print('block_delete: Layer blocks cannot be deleted')
         return
 
     # Remove all links to this block
@@ -575,6 +583,10 @@ def deleteLink(args):
     link = next((l for l in links if l.id == args['id']), None)
     if link is None:
         print('link_delete: Invalid link id ' + args['id'])
+        return
+
+    if link.implicit is True:
+        print('link_delete: Implicit links cannot be deleted')
         return
 
     # Remove link from blocks
