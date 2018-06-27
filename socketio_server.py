@@ -155,9 +155,9 @@ class Block(metaclass=ABCMeta):
         }
 
     @abstractmethod
-    def eval(self, gs, ls):
+    def eval(self, gs, inputs):
         """ Evaluate this block using the given input, returning the output"""
-        return
+        return None
 
 
 class CodeBlock(Block):
@@ -184,18 +184,29 @@ class CodeBlock(Block):
         json['code'] = self.code
         return json
 
-    def eval(self, gs, ls):
+    def eval(self, gs, inputs):
+        # Empty all outputs (if not already set - this allows
+        # passing inputs by using the same port name)
+        for k in self.outputs.keys():
+            if k not in inputs:
+                inputs[k] = None
+
         # Run our custom code
         with stdoutIO() as s:
-            exec(self.code, gs, ls)
+            exec(self.code, gs, inputs)
+
+        # Save the output ports of our execution
+        outs = {}
+        for k in self.outputs.keys():
+            outs[k] = inputs[k]
 
         # Print statements to console. We could also return them or something...
-        out = s.getvalue()
-        if len(out) > 0:
-            print(self.id + ': ' + out)
+        text = s.getvalue()
+        if len(text) > 0:
+            print(self.id + ': ' + text)
 
-        # Return the "local" variables which contain our results
-        return ls
+        # Return an object with our output ports
+        return outs
 
 
 class LayerBlock(Block):
@@ -216,8 +227,13 @@ class LayerBlock(Block):
         json['type'] = type(self.layer).__name__
         return json
 
-    def eval(self, gs, ls):
-        return self.layer.output
+    def eval(self, gs, inputs):
+        ws = self.layer.get_weights()
+        return {
+            'output': self.layer.output,
+            'weights': ws[0],
+            'bias': ws[1],
+        }
 
 
 class VariableBlock(Block):
@@ -238,8 +254,8 @@ class VariableBlock(Block):
         json['name'] = self.name
         return json
 
-    def eval(self, gs, ls):
-        return self.value
+    def eval(self, gs, inputs):
+        return {'value': self.value}
 
 
 # Exposed variables
@@ -436,39 +452,21 @@ def evalBlock(args):
     try:
         # Traverse the blocks
         for b in bs:
-            # Use our exposed variables as the local variables inside the block eval
-            ls = vars
-
-            # Cache any variables that we might overwrite
-            # so that we don't actually change any values
-            cache = {}
+            # Collect inputs for this block
+            inputs = {}
 
             # Set inputs from links
             for k, l in b.inputs.items():
-                if k in ls:
-                    cache[k] = ls[k]
                 if l is None:
-                    ls[k] = None
+                    inputs[k] = None
                 else:
-                    ls[k] = outs[l.fromBlock.id][l.fromPort]
-
-            # Clear outputs for this node
-            for k in b.outputs.keys():
-                if k in ls:
-                    cache[k] = ls[k]
-                ls[k] = None
+                    inputs[k] = outs[l.fromBlock.id][l.fromPort]
 
             # Run the function
-            out = b.eval(gs, ls)
+            out = b.eval(gs, inputs)
 
             # Save the output ports of our execution
-            outs[b.id] = {}
-            for k in b.outputs.keys():
-                outs[b.id][k] = out[k]
-
-            # Restore any cached values
-            for k, v in cache.items():
-                ls[k] = v
+            outs[b.id] = out
 
         # Get the output for the block we ran the eval socket.io event
         res = outs[block.id]
