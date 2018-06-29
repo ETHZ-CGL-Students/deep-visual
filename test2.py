@@ -50,6 +50,8 @@ model.evaluate(x_test, y_test, verbose=1)
 
 model.summary()
 
+graph = tf.get_default_graph()
+
 # Expose our model to the web
 expose_model(model)
 # Expose our local variables
