@@ -17,7 +17,8 @@ export class CodeNodeFactory extends AbstractNodeFactory<CodeNodeModel> {
 		return React.createElement(CodeNodeWidget, {
 			node: node,
 			diagramEngine: diagramEngine,
-			canEditPorts: true
+			canEditPorts: true,
+			canEval: true
 		});
 	}
 

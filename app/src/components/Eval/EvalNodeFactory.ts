@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { AbstractNodeFactory, DiagramEngine } from 'storm-react-diagrams';
 
+import { BaseNodeWidget } from '../Base/BaseNodeWidget';
+
 import { EvalNodeModel } from './EvalNodeModel';
-import { EvalNodeWidget } from './EvalNodeWidget';
 
 export class EvalNodeFactory extends AbstractNodeFactory<EvalNodeModel> {
 	constructor() {
@@ -13,9 +14,10 @@ export class EvalNodeFactory extends AbstractNodeFactory<EvalNodeModel> {
 		diagramEngine: DiagramEngine,
 		node: EvalNodeModel
 	): JSX.Element {
-		return React.createElement(EvalNodeWidget as any, {
+		return React.createElement(BaseNodeWidget as any, {
 			node: node,
-			diagramEngine: diagramEngine
+			diagramEngine: diagramEngine,
+			canEval: true
 		});
 	}
 

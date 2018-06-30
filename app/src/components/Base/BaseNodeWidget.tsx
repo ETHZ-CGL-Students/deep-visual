@@ -13,6 +13,7 @@ export interface BaseNodeProps extends BaseWidgetProps {
 	node: BaseNodeModel;
 	diagramEngine: DiagramEngine;
 	canEditPorts?: boolean;
+	canEval?: boolean;
 }
 
 export interface BaseNodeState {}
@@ -55,8 +56,12 @@ export class BaseNodeWidget<
 		this.forceUpdate();
 	}
 
+	onEval() {
+		this.props.node.eval();
+	}
+
 	render() {
-		const { node } = this.props;
+		const { node, canEval, canEditPorts } = this.props;
 
 		return (
 			<div
@@ -69,7 +74,7 @@ export class BaseNodeWidget<
 				<div className={this.bem('__ports')}>
 					<div className={this.bem('__in')}>
 						{node.getInPorts().map(p => this.generatePort(p))}
-						{this.props.canEditPorts && (
+						{canEditPorts && (
 							<div style={{ display: 'flex' }}>
 								<button onClick={() => this.addPort(true)}>+</button>
 							</div>
@@ -84,8 +89,19 @@ export class BaseNodeWidget<
 						)}
 					</div>
 				</div>
-				<div style={{ color: 'red' }}>{node.err}</div>
-				<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
+				{canEval && (
+					<>
+						<button
+							disabled={node.running}
+							style={{ width: '100%', cursor: 'pointer' }}
+							onClick={() => this.onEval()}
+						>
+							Run
+						</button>
+						<div style={{ color: 'red' }}>{node.err}</div>
+						<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
+					</>
+				)}
 				{this.renderContent()}
 			</div>
 		);

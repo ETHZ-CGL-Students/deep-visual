@@ -24,10 +24,6 @@ export class CodeNodeWidget extends BaseNodeWidget<
 		this.props.node.changeCode(code);
 	}
 
-	onEval() {
-		this.props.node.eval();
-	}
-
 	renderContent() {
 		const { node } = this.props;
 
@@ -40,13 +36,6 @@ export class CodeNodeWidget extends BaseNodeWidget<
 				}}
 				style={{ cursor: 'text' }}
 			>
-				<button
-					disabled={node.running}
-					style={{ width: '100%', cursor: 'pointer' }}
-					onClick={() => this.onEval()}
-				>
-					Run
-				</button>
 				<CodeMirror
 					value={node.code}
 					onChange={c => this.onChange(c)}
