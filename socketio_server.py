@@ -214,8 +214,8 @@ class LayerBlock(Block):
 
     def __init__(self, model, layer, x=10, y=10):
         super(LayerBlock, self).__init__(id=layer.name, x=x, y=y)
-        self.model = model
         self.layer = layer
+        # This is still a little hacky, but we need the model when evaluating this layer
         self.layer._model = model
         self.inputs = OrderedDict([('input', None)])
         self.outputs = OrderedDict([
