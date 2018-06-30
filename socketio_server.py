@@ -33,7 +33,7 @@ class MyJSONEncoder(json.JSONEncoder):
         if hasattr(obj, 'to_json'):
             return obj.to_json()
         elif isinstance(obj, np.ndarray):
-            return "<Matrix [" + ', '.join(map(str, obj.shape)) + "]>"
+            return "<ndarray [" + ', '.join(map(str, obj.shape)) + "]>"
             # return serialize_matrix(obj)
         return "<" + type(obj).__name__ + ">"
 
@@ -97,9 +97,13 @@ class Variable(object):
     def __init__(self, name, value):
         self.name = name
         self.value = value
+        if isinstance(value, np.ndarray):
+            self.type = "ndarray [" + ', '.join(map(str, value.shape)) + "]"
+        else:
+            self.type = type(value).__name__
 
     def to_json(self):
-        return {'name': self.name, 'type': type(self.value).__name__}
+        return {'name': self.name, 'type': self.type}
 
 
 class Link(object):

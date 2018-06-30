@@ -231,11 +231,13 @@ class App extends React.Component<Props, OwnState> {
 					</div>
 					<h3>Blocks</h3>
 					<div id="menu-blocks">
-						<div className="menu-var-entry" onClick={() => this.addCodeBlock()}>
-							Code
+						<div className="menu-entry" onClick={() => this.addCodeBlock()}>
+							<div>Code</div>
+							<div className="type">Add custom code</div>
 						</div>
-						<div className="menu-var-entry" onClick={() => this.addEvalBlock()}>
-							Eval
+						<div className="menu-entry" onClick={() => this.addEvalBlock()}>
+							<div>Eval</div>
+							<div className="type">Evaluate layers</div>
 						</div>
 					</div>
 					<h3>Variables</h3>
@@ -243,7 +245,7 @@ class App extends React.Component<Props, OwnState> {
 						{vars.map(v => (
 							<div
 								key={v.name}
-								className="menu-var-entry"
+								className="menu-entry"
 								onClick={() => this.addVariableBlock(v.name)}
 							>
 								<div>{v.name}</div>

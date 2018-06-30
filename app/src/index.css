@@ -34,27 +34,26 @@ html {
 
 #menu-blocks {
   overflow-y: scroll;
-  padding: 0 10px 0 0;
 }
 
 #menu-var {
-  flex: 1;
   overflow-y: scroll;
-  padding: 0 10px 0 0;
+  flex: 1;
 }
 
-.menu-var-entry {
+.menu-entry {
   display: flex;
   justify-content: space-between;
 }
 
-.menu-var-entry:hover {
+.menu-entry:hover {
   cursor: pointer;
   background-color: lightgrey;
 }
 
-.menu-var-entry>.type {
+.menu-entry>.type {
   color: grey;
+  font-size: 80%;
 }
 
 #content {
