@@ -3,16 +3,21 @@ import { NodeModel } from 'storm-react-diagrams';
 import { BasePortModel } from './BasePortModel';
 
 export class BaseNodeModel extends NodeModel {
-	public name: string;
-	public color: string;
-
-	protected triggerEvents: boolean = true;
 	protected _x: number = 0;
 	protected _y: number = 0;
+
+	public name: string;
+	public color: string;
+	public running: boolean;
+	public err: string | null;
+	public out: string | null;
+
+	protected triggerEvents: boolean = true;
 	protected moveListener?: () => void;
 	protected newPortListener?: (port: BasePortModel) => void;
 	protected renamePortListener?: (port: BasePortModel, oldName: string) => void;
 	protected deletePortListener?: (port: BasePortModel) => void;
+	protected evalListener?: () => void;
 
 	ports: { [s: string]: BasePortModel };
 	// TODO: Sadly the base node class maps the ports by name instead of id
@@ -21,6 +26,7 @@ export class BaseNodeModel extends NodeModel {
 
 	constructor(type: string, id?: string) {
 		super(type, id);
+		this.running = false;
 		this.name = type + ' - ' + id;
 	}
 
@@ -74,6 +80,15 @@ export class BaseNodeModel extends NodeModel {
 
 		delete this.portsById[port.id];
 		super.removePort(port);
+	}
+
+	onEval(listener: () => void) {
+		this.evalListener = listener;
+	}
+	eval() {
+		if (this.evalListener) {
+			this.evalListener();
+		}
 	}
 
 	pauseEvents() {

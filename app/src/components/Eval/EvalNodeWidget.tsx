@@ -1,27 +1,23 @@
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/mode/python/python';
 import * as React from 'react';
-import * as CodeMirror from 'react-codemirror';
 
 import { BaseNodeProps, BaseNodeWidget } from '../Base/BaseNodeWidget';
-import { CodeNodeModel } from '../Code/CodeNodeModel';
 
-export interface CodeNodeWidgetProps extends BaseNodeProps {
-	node: CodeNodeModel;
+import { EvalNodeModel } from './EvalNodeModel';
+
+export interface EvalNodeWidgetProps extends BaseNodeProps {
+	node: EvalNodeModel;
 }
 
-export interface CodeNodeWidgetState {}
+export interface EvalNodeWidgetState {}
 
-export class CodeNodeWidget extends BaseNodeWidget<
-	CodeNodeWidgetProps,
-	CodeNodeWidgetState
+export class EvalNodeWidget extends BaseNodeWidget<
+	EvalNodeWidgetProps,
+	EvalNodeWidgetState
 > {
-	constructor(props: CodeNodeWidgetProps) {
+	constructor(props: EvalNodeWidgetProps) {
 		super(props);
-	}
-
-	onChange(code: string) {
-		this.props.node.changeCode(code);
 	}
 
 	onEval() {
@@ -47,11 +43,6 @@ export class CodeNodeWidget extends BaseNodeWidget<
 				>
 					Run
 				</button>
-				<CodeMirror
-					value={node.code}
-					onChange={c => this.onChange(c)}
-					options={{ mode: 'python' }}
-				/>
 			</div>
 		);
 	}

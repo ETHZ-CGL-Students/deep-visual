@@ -56,14 +56,19 @@ export class BaseNodeWidget<
 	}
 
 	render() {
+		const { node } = this.props;
+
 		return (
-			<div {...this.getProps()} style={{ background: this.props.node.color }}>
+			<div
+				{...this.getProps()}
+				style={{ background: node.color, maxWidth: 600 }}
+			>
 				<div className={this.bem('__title')}>
-					<div className={this.bem('__name')}>{this.props.node.name}</div>
+					<div className={this.bem('__name')}>{node.name}</div>
 				</div>
 				<div className={this.bem('__ports')}>
 					<div className={this.bem('__in')}>
-						{this.props.node.getInPorts().map(p => this.generatePort(p))}
+						{node.getInPorts().map(p => this.generatePort(p))}
 						{this.props.canEditPorts && (
 							<div style={{ display: 'flex' }}>
 								<button onClick={() => this.addPort(true)}>+</button>
@@ -71,7 +76,7 @@ export class BaseNodeWidget<
 						)}
 					</div>
 					<div className={this.bem('__out')}>
-						{this.props.node.getOutPorts().map(p => this.generatePort(p))}
+						{node.getOutPorts().map(p => this.generatePort(p))}
 						{this.props.canEditPorts && (
 							<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
 								<button onClick={() => this.addPort(false)}>+</button>
@@ -79,6 +84,8 @@ export class BaseNodeWidget<
 						)}
 					</div>
 				</div>
+				<div style={{ color: 'red' }}>{node.err}</div>
+				<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
 				{this.renderContent()}
 			</div>
 		);

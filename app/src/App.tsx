@@ -5,12 +5,14 @@ import {
 	DiagramWidget
 } from 'storm-react-diagrams';
 
-import { Block, isCode, isLayer, isVar, Variable } from './types';
+import { Block, isCode, isEval, isLayer, isVar, Variable } from './types';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
 import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
 import { CodeNodeModel } from './components/Code/CodeNodeModel';
+import { EvalNodeFactory } from './components/Eval/EvalNodeFactory';
+import { EvalNodeModel } from './components/Eval/EvalNodeModel';
 import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
 import { LayerNodeModel } from './components/Layer/LayerNodeModel';
 import { VariableNodeFactory } from './components/Variable/VariableNodeFactory';
@@ -56,6 +58,7 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.registerNodeFactory(new CodeNodeFactory());
 		this.engine.registerNodeFactory(new LayerNodeFactory());
 		this.engine.registerNodeFactory(new VariableNodeFactory());
+		this.engine.registerNodeFactory(new EvalNodeFactory());
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
@@ -140,26 +143,28 @@ class App extends React.Component<Props, OwnState> {
 			_node.onChange(() => {
 				API.changeBlock(b.id, _node.code);
 			});
-			_node.onRun(() => {
-				_node.err = null;
-				_node.out = null;
-				_node.running = true;
-				API.evalBlock(b.id, (err, out) => {
-					_node.err = err;
-					_node.out = out;
-					_node.running = false;
-					this.forceUpdate();
-				});
-			});
 		} else if (isVar(b)) {
 			_node = new VariableNodeModel(b);
 		} else if (isLayer(b)) {
 			_node = new LayerNodeModel(b);
+		} else if (isEval(b)) {
+			_node = new EvalNodeModel(b);
 		}
 
 		const node = _node as BaseNodeModel;
 
 		node.setPosition(b.x, b.y);
+		node.onEval(() => {
+			node.err = null;
+			node.out = null;
+			node.running = true;
+			API.evalBlock(b.id, (err, out) => {
+				node.err = err;
+				node.out = out;
+				node.running = false;
+				this.forceUpdate();
+			});
+		});
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
 		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
 		node.onRenamePort((port, oldName) =>
@@ -179,10 +184,13 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	addCodeBlock(code: string = '') {
-		API.createBlock({ code });
+		API.createBlock({ type: 'code', code });
+	}
+	addEvalBlock() {
+		API.createBlock({ type: 'eval' });
 	}
 	addVariableBlock(name: string) {
-		API.createBlock({ var: name });
+		API.createBlock({ type: 'var', var: name });
 	}
 
 	dragBlock(id: string, x: number, y: number) {
@@ -215,12 +223,20 @@ class App extends React.Component<Props, OwnState> {
 				<div id="menu">
 					<div>
 						<button onClick={() => this.start()}>Train</button>&nbsp;
-						<button onClick={() => this.addCodeBlock()}>Add Code</button>
 						<br />
 						<br />
 						<progress value={this.state.epoch} max={this.state.epochs} />
 						<br />
 						<progress value={this.state.batch} max={this.state.batches} />
+					</div>
+					<h3>Blocks</h3>
+					<div id="menu-blocks">
+						<div className="menu-var-entry" onClick={() => this.addCodeBlock()}>
+							Code
+						</div>
+						<div className="menu-var-entry" onClick={() => this.addEvalBlock()}>
+							Eval
+						</div>
 					</div>
 					<h3>Variables</h3>
 					<div id="menu-var">

@@ -143,7 +143,11 @@ class API {
 		socket.emit('data', callback);
 	}
 
-	createBlock(args: { code?: string; var?: string }) {
+	createBlock(args: {
+		type: 'code' | 'var' | 'eval';
+		code?: string;
+		var?: string;
+	}) {
 		socket.emit('block_create', args);
 	}
 	changeBlock(id: string, code: string) {

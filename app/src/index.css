@@ -32,6 +32,11 @@ html {
   box-sizing: border-box;
 }
 
+#menu-blocks {
+  overflow-y: scroll;
+  padding: 0 10px 0 0;
+}
+
 #menu-var {
   flex: 1;
   overflow-y: scroll;

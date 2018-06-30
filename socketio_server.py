@@ -19,6 +19,9 @@ from types import ModuleType
 from threading import Thread
 from flask import Flask
 from flask_socketio import SocketIO, emit
+from keras import Model
+from keras import backend as K
+from keras.optimizers import RMSprop
 
 eventlet.monkey_patch(socket=True)
 
@@ -30,8 +33,9 @@ class MyJSONEncoder(json.JSONEncoder):
         if hasattr(obj, 'to_json'):
             return obj.to_json()
         elif isinstance(obj, np.ndarray):
-            return serialize_matrix(obj)
-        return json.JSONEncoder.default(self, obj)
+            return "<Matrix [" + ', '.join(map(str, obj.shape)) + "]>"
+            # return serialize_matrix(obj)
+        return "<" + type(obj).__name__ + ">"
 
 
 class MyJSONWrapper(object):
@@ -74,11 +78,7 @@ def serialize_matrix(mat):
         return []
 
     # First get the size of each dim, and the amount of dims
-    dims = []
-    curr = mat
-    while (isinstance(curr, np.ndarray)):
-        dims.append(len(curr))
-        curr = curr[0]
+    dims = mat.shape
 
     # Then write the amount of dims, and each dim size
     str = len(dims).to_bytes(4, 'little')
@@ -212,12 +212,15 @@ class CodeBlock(Block):
 class LayerBlock(Block):
     """ An block representing a layer of a model """
 
-    def __init__(self, layer, x=10, y=10):
+    def __init__(self, model, layer, x=10, y=10):
         super(LayerBlock, self).__init__(id=layer.name, x=x, y=y)
+        self.model = model
         self.layer = layer
+        self.layer._model = model
         self.inputs = OrderedDict([('input', None)])
-        self.outputs = OrderedDict([('output', []), ('bias', []), ('weights',
-                                                                   [])])
+        self.outputs = OrderedDict([
+            ('output', []), ('layer', []), ('bias', []), ('weights', [])
+        ])
 
     def to_json(self):
         """ This is called by our custom json serializer """
@@ -231,6 +234,7 @@ class LayerBlock(Block):
         ws = self.layer.get_weights()
         return {
             'output': self.layer.output,
+            'layer': self.layer,
             'weights': ws[0],
             'bias': ws[1],
         }
@@ -258,6 +262,39 @@ class VariableBlock(Block):
         return {'value': self.value}
 
 
+class EvalBlock(Block):
+    """ A block used to evaluate layers """
+
+    def __init__(self, id=None, x=10, y=10):
+        super(EvalBlock, self).__init__(id=id, x=x, y=y)
+        self.inputs = OrderedDict(
+            [('layer', None), ('batch_size', None), ('x', None)])
+        self.outputs = OrderedDict([('y', [])])
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(EvalBlock, self).to_json()
+        json['class'] = 'EvalBlock'
+        return json
+
+    def eval(self, gs, inputs):
+        layer = inputs['layer']
+        x = inputs['x']
+        batch_size = 64 if inputs['batch_size'] is None else inputs['batch_size']
+        if layer is None or x is None:
+            return {'value': None}
+
+        with layer.output.graph.as_default():
+            nmodel = Model(inputs=[layer._model.input], outputs=[layer.output])
+            nmodel.compile(
+                loss='categorical_crossentropy',
+                optimizer=RMSprop(),
+                metrics=['accuracy'])
+            value = nmodel.predict(x=x, batch_size=batch_size, verbose=1)
+            return {'value': value}
+
+
 # Exposed variables
 vars = {}
 # Blocks of code
@@ -280,11 +317,14 @@ def parseDataObject(d):
 
     # Only parse the blocks at this stage, because links have id refs to
     # the blocks, and we don't have all the blocks yet, so we can resolve the refs
-    if d['class'] == 'CodeBlock':
+    c = d['class']
+    if c == 'CodeBlock':
         return CodeBlock(data=d)
-    elif d['class'] == 'VariableBlock':
+    elif c == 'VariableBlock':
         return VariableBlock(
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
+    elif c == 'EvalBlock':
+        return EvalBlock(id=d['id'], x=d['x'], y=d['y'])
 
     return d
 
@@ -351,16 +391,23 @@ def getData():
 # Creating a new block
 @sio.on('block_create')
 def addBlock(args):
-    if 'code' in args:
+    t = args['type']
+
+    if t == 'code':
         newBlock = CodeBlock(args['code'])
         blocks.append(newBlock)
         sio.emit('block_create', data=newBlock)
-    elif 'var' in args:
+    elif t == 'var':
         name = args['var']
         value = vars[name]
         newBlock = VariableBlock(name, value)
         blocks.append(newBlock)
         sio.emit('block_create', data=newBlock)
+    elif t == 'eval':
+        newBlock = EvalBlock()
+        blocks.append(newBlock)
+        sio.emit('block_create', data=newBlock)
+
     saveData()
 
 
@@ -431,6 +478,11 @@ def evalBlock(args):
     block = next((b for b in blocks if b.id == args['id']), None)
     if block is None:
         return ['Invalid block']
+
+    if isinstance(block, LayerBlock):
+        return ['Cannot evaluate layer directly']
+
+    print('Eval: ' + block.id)
 
     # Build our execution tree
     bs = [block]
@@ -623,7 +675,7 @@ def expose_model(model):
     # Add all layers as blocks
     i = 0
     for layer in model.layers:
-        blocks.append(LayerBlock(layer, x=i * 200))
+        blocks.append(LayerBlock(model, layer, x=i * 200))
         i += 1
 
     # Link the layers 'prev' and 'next'
