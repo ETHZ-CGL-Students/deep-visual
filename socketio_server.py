@@ -97,8 +97,9 @@ class Variable(object):
     def __init__(self, name, value):
         self.name = name
         self.value = value
+        # Special handling for matrices to show dimensions
         if isinstance(value, np.ndarray):
-            self.type = "ndarray [" + ', '.join(map(str, value.shape)) + "]"
+            self.type = "ndarray [" + ", ".join(map(str, value.shape)) + "]"
         else:
             self.type = type(value).__name__
 
@@ -223,7 +224,7 @@ class LayerBlock(Block):
         self.layer._model = model
         self.inputs = OrderedDict([('input', None)])
         self.outputs = OrderedDict([
-            ('output', []), ('layer', []), ('bias', []), ('weights', [])
+            ('output', []), ('layer', []), ('weights', [])
         ])
 
     def to_json(self):
@@ -239,8 +240,7 @@ class LayerBlock(Block):
         return {
             'output': self.layer.output,
             'layer': self.layer,
-            'weights': ws[0],
-            'bias': ws[1],
+            'weights': ws,
         }
 
 
@@ -287,7 +287,7 @@ class EvalBlock(Block):
         x = inputs['x']
         batch_size = 64 if inputs['batch_size'] is None else inputs['batch_size']
         if layer is None or x is None:
-            return {'value': None}
+            return {'y': None}
 
         with layer.output.graph.as_default():
             nmodel = Model(inputs=[layer._model.input], outputs=[layer.output])
@@ -296,7 +296,7 @@ class EvalBlock(Block):
                 optimizer=RMSprop(),
                 metrics=['accuracy'])
             value = nmodel.predict(x=x, batch_size=batch_size, verbose=1)
-            return {'value': value}
+            return {'y': value}
 
 
 # Exposed variables

@@ -46,7 +46,7 @@ export class BasetPortLabelWidget extends BaseWidget<
 				onDoubleClick={() => onDelete && this.changeName()}
 				style={{ padding: '0 10px' }}
 			>
-				{model.label}
+				{model.name}
 			</div>
 		);
 

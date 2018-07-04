@@ -11,7 +11,6 @@ export class LayerNodeModel extends BaseNodeModel {
 		this.addPort(new BasePortModel(true, 'input'));
 		this.addPort(new BasePortModel(false, 'output'));
 		this.addPort(new BasePortModel(false, 'layer'));
-		this.addPort(new BasePortModel(false, 'bias'));
 		this.addPort(new BasePortModel(false, 'weights'));
 	}
 
