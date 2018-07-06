@@ -14,6 +14,7 @@ export interface BaseNodeProps extends BaseWidgetProps {
 	diagramEngine: DiagramEngine;
 	canEditPorts?: boolean;
 	canEval?: boolean;
+	hideRawData?: boolean;
 }
 
 export interface BaseNodeState {}
@@ -61,7 +62,9 @@ export class BaseNodeWidget<
 	}
 
 	render() {
-		const { node, canEval, canEditPorts } = this.props;
+		const { node, canEval, canEditPorts, hideRawData } = this.props;
+
+		const content = this.renderContent();
 
 		return (
 			<div
@@ -99,10 +102,14 @@ export class BaseNodeWidget<
 							Run
 						</button>
 						<div style={{ color: 'red' }}>{node.err}</div>
-						<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
+						{!hideRawData && (
+							<pre style={{ margin: 0 }}>
+								{JSON.stringify(node.out, null, 2)}
+							</pre>
+						)}
 					</>
 				)}
-				{this.renderContent()}
+				{content && <div style={{ padding: 4 }}>{content}</div>}
 			</div>
 		);
 	}

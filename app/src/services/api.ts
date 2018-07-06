@@ -144,7 +144,7 @@ class API {
 	}
 
 	createBlock(args: {
-		type: 'code' | 'var' | 'eval';
+		type: 'code' | 'var' | 'visual';
 		code?: string;
 		var?: string;
 	}) {
@@ -159,15 +159,14 @@ class API {
 	deleteBlock(id: string) {
 		socket.emit('block_delete', { id });
 	}
-	evalBlock(id: string, callback: (err: string, out: any) => void) {
-		socket.emit('block_eval', { id }, ([err, out]: [string, any]) => {
-			console.log(err);
-			let res = out;
-			if (out instanceof ArrayBuffer) {
-				res = readMatrixFromBuffer(out);
+	evalBlock(id: string, callback: (err: string | null, out: any) => void) {
+		socket.emit('block_eval', { id }, (data: any) => {
+			console.log(data);
+			if (data instanceof ArrayBuffer) {
+				callback(null, readMatrixFromBuffer(data));
+			} else {
+				callback(data[0], data[1]);
 			}
-			console.log(res);
-			callback(err, res);
 		});
 	}
 

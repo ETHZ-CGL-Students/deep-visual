@@ -10,7 +10,7 @@ export class BaseNodeModel extends NodeModel {
 	public color: string;
 	public running: boolean;
 	public err: string | null;
-	public out: string | null;
+	public out: any;
 
 	protected triggerEvents: boolean = true;
 	protected moveListener?: () => void;

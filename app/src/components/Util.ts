@@ -18,7 +18,5 @@ export function readMatrixFromBuffer(data: ArrayBuffer) {
 		vals = newVals;
 	}
 
-	console.log(vals);
-
 	return vals;
 }

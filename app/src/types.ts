@@ -1,5 +1,5 @@
 export interface Block {
-	class: 'LayerBlock' | 'CodeBlock' | 'VariableBlock';
+	class: 'LayerBlock' | 'CodeBlock' | 'VariableBlock' | 'VisualBlock';
 	id: string;
 	x: number;
 	y: number;
@@ -37,6 +37,11 @@ export interface CodeBlock extends Block {
 }
 export function isCode(block: Block): block is CodeBlock {
 	return block.class === 'CodeBlock';
+}
+
+export interface VisualBlock extends Block {}
+export function isVisual(block: Block): block is VisualBlock {
+	return block.class === 'VisualBlock';
 }
 
 export interface Layer {

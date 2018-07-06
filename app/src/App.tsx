@@ -5,7 +5,7 @@ import {
 	DiagramWidget
 } from 'storm-react-diagrams';
 
-import { Block, isCode, isLayer, isVar, Variable } from './types';
+import { Block, isCode, isLayer, isVar, isVisual, Variable } from './types';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
@@ -16,6 +16,8 @@ import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
 import { LayerNodeModel } from './components/Layer/LayerNodeModel';
 import { VariableNodeFactory } from './components/Variable/VariableNodeFactory';
 import { VariableNodeModel } from './components/Variable/VariableNodeModel';
+import { VisualNodeFactory } from './components/Visual/VisualNodeFactory';
+import { VisualNodeModel } from './components/Visual/VisualNodeModel';
 import API from './services/api';
 
 const debounce = require('lodash.debounce');
@@ -57,6 +59,7 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.registerNodeFactory(new CodeNodeFactory());
 		this.engine.registerNodeFactory(new LayerNodeFactory());
 		this.engine.registerNodeFactory(new VariableNodeFactory());
+		this.engine.registerNodeFactory(new VisualNodeFactory());
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
@@ -149,6 +152,8 @@ class App extends React.Component<Props, OwnState> {
 			_node = new VariableNodeModel(b);
 		} else if (isLayer(b)) {
 			_node = new LayerNodeModel(b);
+		} else if (isVisual(b)) {
+			_node = new VisualNodeModel(b);
 		}
 
 		const node = _node as BaseNodeModel;
@@ -185,6 +190,9 @@ class App extends React.Component<Props, OwnState> {
 
 	addCodeBlock(code: string = '') {
 		API.createBlock({ type: 'code', code });
+	}
+	addVisualBlock() {
+		API.createBlock({ type: 'visual' });
 	}
 	addVariableBlock(name: string) {
 		API.createBlock({ type: 'var', var: name });
@@ -231,6 +239,10 @@ class App extends React.Component<Props, OwnState> {
 						<div className="menu-entry" onClick={() => this.addCodeBlock()}>
 							<div>Code</div>
 							<div className="type">Add custom code</div>
+						</div>
+						<div className="menu-entry" onClick={() => this.addVisualBlock()}>
+							<div>Visual</div>
+							<div className="type">Visualize data</div>
 						</div>
 					</div>
 					<h3>Variables</h3>

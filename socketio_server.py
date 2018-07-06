@@ -35,7 +35,6 @@ class MyJSONEncoder(json.JSONEncoder):
             return obj.to_json()
         elif isinstance(obj, np.ndarray):
             return "<ndarray [" + ', '.join(map(str, obj.shape)) + "]>"
-            # return serialize_matrix(obj)
         return "<" + type(obj).__name__ + ">"
 
 
@@ -75,8 +74,8 @@ def stdoutIO(stdout=None):
 def serialize_matrix(mat):
     """ Serialize a matrix to an array of bytes: [nDims] [dim1, dim2, ...] [values]"""
 
-    if len(mat) == 0:
-        return []
+    if mat is None or len(mat) == 0:
+        return ""
 
     # First get the size of each dim, and the amount of dims
     dims = mat.shape
@@ -221,9 +220,12 @@ class LayerBlock(Block):
     def __init__(self, layer, x=10, y=10):
         super(LayerBlock, self).__init__(id=layer.name, x=x, y=y)
         self.layer = layer
-        self.inputs = OrderedDict([('input', None)])
+        self.inputs = OrderedDict([
+            ('input', None)
+        ])
         self.outputs = OrderedDict([
-            ('output', []), ('weights', [])
+            ('output', []),
+            ('weights', [])
         ])
 
     def to_json(self):
@@ -258,8 +260,11 @@ class VariableBlock(Block):
         super(VariableBlock, self).__init__(id=name, x=x, y=y)
         self.name = name
         self.value = value
-        self.inputs = OrderedDict([])
-        self.outputs = OrderedDict([('value', [])])
+        self.inputs = OrderedDict([
+        ])
+        self.outputs = OrderedDict([
+            ('value', [])
+        ])
 
     def to_json(self):
         """ This is called by our custom json serializer """
@@ -271,6 +276,36 @@ class VariableBlock(Block):
 
     def eval(self, gs, inputs):
         return {'value': self.value}
+
+
+class VisualBlock(Block):
+    """ An block used to visualize data (usually matrices) """
+
+    def __init__(self, id=None, x=10, y=10):
+        super(VisualBlock, self).__init__(id=id, x=x, y=y)
+        self.inputs = OrderedDict([
+            ('input', None)
+        ])
+        # We add a fake output, which isn't shown in the frontend but allows
+        # us to cache the result (=input) and send it as binary socket data
+        # More advanced visualization blocks could also transform the data
+        # on the server side this way
+        self.outputs = OrderedDict([
+            ('__output__', [])
+        ])
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(VisualBlock, self).to_json()
+        json['class'] = 'VisualBlock'
+        return json
+
+    def eval(self, gs, inputs):
+        return {
+            '__output__': inputs['input']
+        }
+
 
 
 # Exposed variables
@@ -301,6 +336,8 @@ def parseDataObject(d):
     elif c == 'VariableBlock':
         return VariableBlock(
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
+    elif c == 'VisualBlock':
+        return VisualBlock(id=d['id'], x=d['x'], y=d['y'])
 
     return d
 
@@ -321,12 +358,12 @@ def loadData():
                 fromBlock = next((b for b in blocks if b.id == l['fromId']),
                                  None)
                 if fromBlock is None:
-                    print('link_create: Invalid block id ' + l['fromId'])
+                    print('load_data: Invalid block id ' + l['fromId'])
                     return
 
                 toBlock = next((b for b in blocks if b.id == l['toId']), None)
                 if toBlock is None:
-                    print('link_create: Invalid block id ' + l['toId'])
+                    print('load_data: Invalid block id ' + l['toId'])
                     return
 
                 fromPort = l['fromPort']
@@ -368,19 +405,20 @@ def getData():
 @sio.on('block_create')
 def addBlock(args):
     t = args['type']
+    newBlock = None
 
     if t == 'code':
         newBlock = CodeBlock(args['code'])
-        blocks.append(newBlock)
-        sio.emit('block_create', data=newBlock)
     elif t == 'var':
-        name = args['var']
-        value = vars[name]
-        newBlock = VariableBlock(name, value)
+        newBlock = VariableBlock(name=args['var'], value=vars[name])
+    elif t == 'visual':
+        newBlock = VisualBlock()
+
+    if newBlock is not None:
         blocks.append(newBlock)
         sio.emit('block_create', data=newBlock)
 
-    saveData()
+        saveData()
 
 
 # Edit code of a block
@@ -496,7 +534,11 @@ def evalBlock(args):
         res = outs[block.id]
 
         # Return our results to the client
-        return [None, res]
+        # If the client clicked eval on a visual block then return binary data
+        if isinstance(block, VisualBlock):
+            return serialize_matrix(res['__output__'])
+        else:
+            return [None, res]
     except:
         # Return the error to the client
         return [tb.format_exc(), None]
