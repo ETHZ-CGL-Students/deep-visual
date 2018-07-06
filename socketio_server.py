@@ -647,7 +647,7 @@ def expose_model(model):
     # Add all layers as blocks
     i = 0
     for layer in model.layers:
-        blocks.append(LayerBlock(layer, x=i * 200))
+        blocks.append(LayerBlock(layer, x=i * 150))
         i += 1
 
     # Link the layers 'prev' and 'next'
