@@ -21,6 +21,7 @@ from flask import Flask
 from flask_socketio import SocketIO, emit
 from keras import Model
 from keras import backend as K
+from keras.layers import Input, InputLayer
 from keras.optimizers import RMSprop
 
 eventlet.monkey_patch(socket=True)
@@ -217,14 +218,12 @@ class CodeBlock(Block):
 class LayerBlock(Block):
     """ An block representing a layer of a model """
 
-    def __init__(self, model, layer, x=10, y=10):
+    def __init__(self, layer, x=10, y=10):
         super(LayerBlock, self).__init__(id=layer.name, x=x, y=y)
         self.layer = layer
-        # This is still a little hacky, but we need the model when evaluating this layer
-        self.layer._model = model
         self.inputs = OrderedDict([('input', None)])
         self.outputs = OrderedDict([
-            ('output', []), ('layer', []), ('weights', [])
+            ('output', []), ('weights', [])
         ])
 
     def to_json(self):
@@ -236,12 +235,20 @@ class LayerBlock(Block):
         return json
 
     def eval(self, gs, inputs):
-        ws = self.layer.get_weights()
-        return {
-            'output': self.layer.output,
-            'layer': self.layer,
-            'weights': ws,
-        }
+        x = inputs['input']
+        if self.layer is None or x is None:
+            return {
+                'output': None,
+                'weights': self.layer.get_weights()
+            }
+
+        with self.layer.output.graph.as_default():
+            layerFunc = K.function(
+                [self.layer.input] + [K.learning_phase()], [self.layer.output])
+            return {
+                'output': layerFunc(inputs=[x])[0],
+                'weights': self.layer.get_weights()
+            }
 
 
 class VariableBlock(Block):
@@ -264,39 +271,6 @@ class VariableBlock(Block):
 
     def eval(self, gs, inputs):
         return {'value': self.value}
-
-
-class EvalBlock(Block):
-    """ A block used to evaluate layers """
-
-    def __init__(self, id=None, x=10, y=10):
-        super(EvalBlock, self).__init__(id=id, x=x, y=y)
-        self.inputs = OrderedDict(
-            [('layer', None), ('batch_size', None), ('x', None)])
-        self.outputs = OrderedDict([('y', [])])
-
-    def to_json(self):
-        """ This is called by our custom json serializer """
-
-        json = super(EvalBlock, self).to_json()
-        json['class'] = 'EvalBlock'
-        return json
-
-    def eval(self, gs, inputs):
-        layer = inputs['layer']
-        x = inputs['x']
-        batch_size = 64 if inputs['batch_size'] is None else inputs['batch_size']
-        if layer is None or x is None:
-            return {'y': None}
-
-        with layer.output.graph.as_default():
-            nmodel = Model(inputs=[layer._model.input], outputs=[layer.output])
-            nmodel.compile(
-                loss='categorical_crossentropy',
-                optimizer=RMSprop(),
-                metrics=['accuracy'])
-            value = nmodel.predict(x=x, batch_size=batch_size, verbose=1)
-            return {'y': value}
 
 
 # Exposed variables
@@ -327,8 +301,6 @@ def parseDataObject(d):
     elif c == 'VariableBlock':
         return VariableBlock(
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
-    elif c == 'EvalBlock':
-        return EvalBlock(id=d['id'], x=d['x'], y=d['y'])
 
     return d
 
@@ -405,10 +377,6 @@ def addBlock(args):
         name = args['var']
         value = vars[name]
         newBlock = VariableBlock(name, value)
-        blocks.append(newBlock)
-        sio.emit('block_create', data=newBlock)
-    elif t == 'eval':
-        newBlock = EvalBlock()
         blocks.append(newBlock)
         sio.emit('block_create', data=newBlock)
 
@@ -679,7 +647,7 @@ def expose_model(model):
     # Add all layers as blocks
     i = 0
     for layer in model.layers:
-        blocks.append(LayerBlock(model, layer, x=i * 200))
+        blocks.append(LayerBlock(layer, x=i * 200))
         i += 1
 
     # Link the layers 'prev' and 'next'

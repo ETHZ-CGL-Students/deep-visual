@@ -10,7 +10,6 @@ export class LayerNodeModel extends BaseNodeModel {
 		this.color = 'rgb(33, 188, 59)';
 		this.addPort(new BasePortModel(true, 'input'));
 		this.addPort(new BasePortModel(false, 'output'));
-		this.addPort(new BasePortModel(false, 'layer'));
 		this.addPort(new BasePortModel(false, 'weights'));
 	}
 

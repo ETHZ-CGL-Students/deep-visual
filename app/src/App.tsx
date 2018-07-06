@@ -5,14 +5,12 @@ import {
 	DiagramWidget
 } from 'storm-react-diagrams';
 
-import { Block, isCode, isEval, isLayer, isVar, Variable } from './types';
+import { Block, isCode, isLayer, isVar, Variable } from './types';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
 import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
 import { CodeNodeModel } from './components/Code/CodeNodeModel';
-import { EvalNodeFactory } from './components/Eval/EvalNodeFactory';
-import { EvalNodeModel } from './components/Eval/EvalNodeModel';
 import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
 import { LayerNodeModel } from './components/Layer/LayerNodeModel';
 import { VariableNodeFactory } from './components/Variable/VariableNodeFactory';
@@ -58,7 +56,6 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.registerNodeFactory(new CodeNodeFactory());
 		this.engine.registerNodeFactory(new LayerNodeFactory());
 		this.engine.registerNodeFactory(new VariableNodeFactory());
-		this.engine.registerNodeFactory(new EvalNodeFactory());
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
@@ -147,8 +144,6 @@ class App extends React.Component<Props, OwnState> {
 			_node = new VariableNodeModel(b);
 		} else if (isLayer(b)) {
 			_node = new LayerNodeModel(b);
-		} else if (isEval(b)) {
-			_node = new EvalNodeModel(b);
 		}
 
 		const node = _node as BaseNodeModel;
@@ -185,9 +180,6 @@ class App extends React.Component<Props, OwnState> {
 
 	addCodeBlock(code: string = '') {
 		API.createBlock({ type: 'code', code });
-	}
-	addEvalBlock() {
-		API.createBlock({ type: 'eval' });
 	}
 	addVariableBlock(name: string) {
 		API.createBlock({ type: 'var', var: name });
@@ -234,10 +226,6 @@ class App extends React.Component<Props, OwnState> {
 						<div className="menu-entry" onClick={() => this.addCodeBlock()}>
 							<div>Code</div>
 							<div className="type">Add custom code</div>
-						</div>
-						<div className="menu-entry" onClick={() => this.addEvalBlock()}>
-							<div>Eval</div>
-							<div className="type">Evaluate layers</div>
 						</div>
 					</div>
 					<h3>Variables</h3>
