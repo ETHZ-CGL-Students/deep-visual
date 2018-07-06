@@ -1,11 +1,15 @@
-import { DefaultLinkModel, PortModel } from 'storm-react-diagrams';
+import { DefaultLinkModel } from 'storm-react-diagrams';
 
 import API from '../../services/api';
 import { Link } from '../../types';
 
+import { BasePortModel } from './BasePortModel';
+
 export class BaseLinkModel extends DefaultLinkModel {
 	new: boolean;
 	implicit: boolean;
+	sourcePort: BasePortModel;
+	targetPort: BasePortModel;
 
 	constructor(link?: Link) {
 		super();
@@ -22,7 +26,7 @@ export class BaseLinkModel extends DefaultLinkModel {
 
 	// This fixes an issue in the original code where setting
 	// the port to the same value actually removed the link from the port
-	setSourcePort(port: PortModel) {
+	setSourcePort(port: BasePortModel) {
 		if (this.sourcePort !== null) {
 			this.sourcePort.removeLink(this);
 		}
@@ -31,21 +35,12 @@ export class BaseLinkModel extends DefaultLinkModel {
 		}
 		this.sourcePort = port;
 
-		if (this.sourcePort && this.targetPort) {
-			if (this.new) {
-				API.createLink(
-					this.sourcePort.parent.id,
-					this.sourcePort.name,
-					this.targetPort.parent.id,
-					this.targetPort.name
-				);
-			}
-		}
+		this.checkCreateLink();
 	}
 
 	// This fixes an issue in the original code where setting
 	// the port to the same value actually removed the link from the port
-	setTargetPort(port: PortModel) {
+	setTargetPort(port: BasePortModel) {
 		if (this.targetPort !== null) {
 			this.targetPort.removeLink(this);
 		}
@@ -54,16 +49,7 @@ export class BaseLinkModel extends DefaultLinkModel {
 		}
 		this.targetPort = port;
 
-		if (this.sourcePort && this.targetPort) {
-			if (this.new) {
-				API.createLink(
-					this.sourcePort.parent.id,
-					this.sourcePort.name,
-					this.targetPort.parent.id,
-					this.targetPort.name
-				);
-			}
-		}
+		this.checkCreateLink();
 	}
 
 	remove() {
@@ -71,5 +57,31 @@ export class BaseLinkModel extends DefaultLinkModel {
 			return;
 		}
 		super.remove();
+	}
+
+	private checkCreateLink() {
+		if (!this.sourcePort || !this.targetPort) {
+			return;
+		}
+
+		if (!this.new || this.sourcePort.in === this.targetPort.in) {
+			return;
+		}
+
+		if (!this.sourcePort.in) {
+			API.createLink(
+				this.sourcePort.parent.id,
+				this.sourcePort.name,
+				this.targetPort.parent.id,
+				this.targetPort.name
+			);
+		} else {
+			API.createLink(
+				this.targetPort.parent.id,
+				this.targetPort.name,
+				this.sourcePort.parent.id,
+				this.sourcePort.name
+			);
+		}
 	}
 }

@@ -16,7 +16,7 @@ export class BasePortModel extends PortModel {
 		this.label = label ? label : name;
 	}
 
-	createLinkModel() {
+	createLinkModel(): LinkModel {
 		return super.createLinkModel() || new BaseLinkModel();
 	}
 
@@ -35,5 +35,9 @@ export class BasePortModel extends PortModel {
 
 		// Inform model of our change
 		this.parent.renamePort(this, oldName);
+	}
+
+	canLinkToPort(port: BasePortModel): boolean {
+		return super.canLinkToPort(port) && port.in !== this.in;
 	}
 }

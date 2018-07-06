@@ -9,6 +9,7 @@ import { Block, isCode, isLayer, isVar, Variable } from './types';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
+import { BasePortModel } from './components/Base/BasePortModel';
 import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
 import { CodeNodeModel } from './components/Code/CodeNodeModel';
 import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
@@ -71,12 +72,16 @@ class App extends React.Component<Props, OwnState> {
 			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
 
 			links.forEach(link => {
-				const from = blockModels[link.fromId].getPort(link.fromPort);
-				const to = blockModels[link.toId].getPort(link.toPort);
+				const from = blockModels[link.fromId].getPort(
+					link.fromPort
+				) as BasePortModel;
+				const to = blockModels[link.toId].getPort(link.toPort) as BasePortModel;
+
 				if (!from || !to) {
 					console.log('Could not create link: Port not found', link, from, to);
 					return;
 				}
+
 				const linkModel = new BaseLinkModel(link);
 				linkModel.setSourcePort(from);
 				linkModel.setTargetPort(to);
