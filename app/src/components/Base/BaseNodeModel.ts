@@ -82,9 +82,10 @@ export class BaseNodeModel extends NodeModel {
 		super.removePort(port);
 	}
 
-	onEval(listener: () => void) {
+	onEval(listener?: () => void) {
 		this.evalListener = listener;
 	}
+
 	eval() {
 		if (this.evalListener) {
 			this.evalListener();

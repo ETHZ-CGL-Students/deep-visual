@@ -32,15 +32,17 @@ interface OwnState {
 	epoch: number;
 	batches: number;
 	batch: number;
+	playing: boolean;
 }
 
 class App extends React.Component<Props, OwnState> {
 	engine: DiagramEngine;
 	model: DiagramModel;
+	playInterval: any;
 
 	constructor(props: Props) {
 		super(props);
-
+		this.playInterval = null;
 		this.state = {
 			blocks: [],
 			links: [],
@@ -48,7 +50,8 @@ class App extends React.Component<Props, OwnState> {
 			epochs: 0,
 			epoch: 0,
 			batches: 0,
-			batch: 0
+			batch: 0,
+			playing: false
 		};
 	}
 
@@ -198,26 +201,25 @@ class App extends React.Component<Props, OwnState> {
 		API.createBlock({ type: 'var', var: name });
 	}
 
-	dragBlock(id: string, x: number, y: number) {
-		API.moveBlock(id, x, y);
-	}
-	changeCodeBlock(id: string, newCode: string) {
-		API.changeBlock(id, newCode);
-	}
-	deleteCodeBlock(id: string) {
-		if (confirm('Are you sure you want to delete this code block?')) {
-			API.deleteBlock(id);
+	evalAll() {
+		if (this.state.blocks) {
+			this.state.blocks.forEach((block) => {
+				if (block instanceof VisualNodeModel) {
+					block.eval();
+				}
+			});
 		}
 	}
 
-	eval(id: string) {
-		API.evalBlock(id, () => {
-			//
-		});
-	}
-
-	start() {
-		API.startTraining();
+	togglePlay() {
+		if (this.playInterval) {
+			clearInterval(this.playInterval);
+			this.setState({playing: false});
+			this.playInterval = null;
+		} else {
+			this.playInterval = setInterval(this.evalAll.bind(this), 5000);
+			this.setState({playing: true});
+		}
 	}
 
 	render() {
@@ -263,6 +265,15 @@ class App extends React.Component<Props, OwnState> {
 								maxNumberPointsPerLink={0}
 							/>
 						)}
+				</div>
+				<div id="controls">
+					<button style={{alignSelf: 'center', height: 21}} onClick={() => this.evalAll()}>Run all</button>
+					<button
+						className={this.state.playing ? 'play-on' : ''}
+						style={{alignSelf: 'center', height: 21, borderRadius: '4px'}}
+						onClick={() => this.togglePlay()}
+					>Play
+					</button>
 				</div>
 			</div>
 		);

@@ -28,6 +28,10 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		event.stopPropagation();
 	}
 
+	onInitialized(a: any, e: any) {
+		return;
+	}
+
 	renderContent() {
 		const { node } = this.props;
 
@@ -56,6 +60,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 						width: 320, height: 320,
 						margin: {t: 0, l: 0, r: 0, b: 0}
 					}}
+					onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
 				/>
 			</div>
 		);

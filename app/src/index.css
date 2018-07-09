@@ -1,8 +1,19 @@
+:root {
+    --main-bg-color: #222222;
+    --main-overlay-color: rgba(0, 0, 0, 0.5);
+    --main-text-color: #fff;
+    --secondary-text-color: #eee;
+}
+
 body,
 html {
     margin: 0;
     padding: 0;
     font-family: sans-serif;
+}
+
+button {
+    outline: 0;
 }
 
 #wrapper {
@@ -15,7 +26,7 @@ html {
     height: 100vh;
     margin: 0;
     padding: 0;
-    background: #222222;
+    background: var(--main-bg-color);
     background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent);
     background-size: 50px 50px;
 }
@@ -23,7 +34,7 @@ html {
 #menu {
     position: absolute;
     z-index: 100;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--main-bg-color);
     display: flex;
     justify-content: space-between;
     align-items: stretch;
@@ -32,14 +43,13 @@ html {
     height: 112px;
     flex-shrink: 0;
     margin: 0;
-    padding: 10px 15px 10px 15px;
-    border-right: 1px solid black;
+    padding: 10px 25px 10px 25px;
     box-sizing: border-box;
 }
 
 .block-title {
     transform: rotate(-90deg);
-    color: white;
+    color: var(--main-text-color);
 }
 
 #menu-blocks {
@@ -56,12 +66,12 @@ html {
     margin: 2px;
     padding: 3px;
     border-radius: 3px;
-    background: #eee;
+    background: var(--secondary-text-color);
 }
 
 .menu-entry:hover {
     cursor: pointer;
-    background-color: lightgrey;
+    background-color: var(--secondary-text-color);
 }
 
 .menu-entry>.type {
@@ -77,6 +87,17 @@ html {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+#controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 150px;
+    height: 40px;
+    display: flex;
+    justify-content: space-around;
+    background: var(--main-overlay-color);
 }
 
 .diagram {
@@ -100,6 +121,10 @@ html {
 }
 .round-button:hover {
     background: #262626;
+}
+
+.play-on {
+    background: forestgreen;
 }
 
 /* react-diagram */
