@@ -226,15 +226,7 @@ class App extends React.Component<Props, OwnState> {
 		return (
 			<div id="wrapper">
 				<div id="menu">
-					<div>
-						<button onClick={() => this.start()}>Train</button>&nbsp;
-						<br />
-						<br />
-						<progress value={this.state.epoch} max={this.state.epochs} />
-						<br />
-						<progress value={this.state.batch} max={this.state.batches} />
-					</div>
-					<h3>Blocks</h3>
+					<h3 className="block-title">Blocks</h3>
 					<div id="menu-blocks">
 						<div className="menu-entry" onClick={() => this.addCodeBlock()}>
 							<div>Code</div>
@@ -245,7 +237,7 @@ class App extends React.Component<Props, OwnState> {
 							<div className="type">Visualize data</div>
 						</div>
 					</div>
-					<h3>Variables</h3>
+					<h3 className="block-title">Variables</h3>
 					<div id="menu-var">
 						{vars.map(v => (
 							<div
