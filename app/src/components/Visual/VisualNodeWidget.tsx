@@ -17,8 +17,15 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	VisualNodeWidgetProps,
 	VisualNodeWidgetState
 > {
+	content: any;
+	data: any;
 	constructor(props: VisualNodeWidgetProps) {
 		super(props);
+		this.onMouseDown = this.onMouseDown.bind(this);
+	}
+
+	onMouseDown(event: any) {
+		event.stopPropagation();
 	}
 
 	renderContent() {
@@ -28,15 +35,15 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			return null;
 		}
 
-		const ls = [];
-		let curr = node.out;
-		while (curr.length) {
-			ls.push(curr.length);
-			curr = curr[0];
+		if (this.content && (node.out === this.data)) {
+			return this.content;
 		}
-		
-		return (
-			<>
+
+		this.data = node.out;
+		this.content = (
+			<div
+				onMouseDownCapture={this.onMouseDown}
+			>
 				<Plot
 					data={[
 						{
@@ -50,7 +57,8 @@ export class VisualNodeWidget extends BaseNodeWidget<
 						margin: {t: 0, l: 0, r: 0, b: 0}
 					}}
 				/>
-			</>
+			</div>
 		);
+		return this.content;
 	}
 }

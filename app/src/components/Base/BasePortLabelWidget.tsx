@@ -50,7 +50,7 @@ export class BasetPortLabelWidget extends BaseWidget<
 			</div>
 		);
 
-		const del = onDelete && <button onClick={() => onDelete()}>X</button>;
+		const del = onDelete && <a className="round-button" onClick={() => onDelete()}>✕</a>;
 
 		return (
 			<div {...this.getProps()}>

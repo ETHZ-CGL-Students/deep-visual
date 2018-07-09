@@ -10,7 +10,7 @@ export class CodeNodeModel extends BaseNodeModel {
 		super('code', block.id);
 
 		this.code = block.code;
-		this.color = 'rgb(0,192,255)';
+		this.color = '#FFE066';
 
 		// Events aren't triggered in the constructor, so we can safely add the ports
 		block.inputs.forEach(k => {

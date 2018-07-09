@@ -267,6 +267,7 @@ class App extends React.Component<Props, OwnState> {
 								diagramEngine={this.engine}
 								allowLooseLinks={false}
 								smartRouting={false}
+								allowCanvasZoom={true}
 								maxNumberPointsPerLink={0}
 							/>
 						)}

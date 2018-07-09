@@ -7,7 +7,7 @@ export class VariableNodeModel extends BaseNodeModel {
 	constructor(block: VariableBlock) {
 		super('variable', block.name);
 
-		this.color = 'rgb(188, 32, 167)';
+		this.color = '#F25F5C';
 		this.addPort(new BasePortModel(false, 'value'));
 	}
 }

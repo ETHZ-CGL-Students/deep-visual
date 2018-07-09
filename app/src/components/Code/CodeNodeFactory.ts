@@ -18,7 +18,7 @@ export class CodeNodeFactory extends AbstractNodeFactory<CodeNodeModel> {
 			node: node,
 			diagramEngine: diagramEngine,
 			canEditPorts: true,
-			canEval: true
+			canEval: false
 		});
 	}
 
