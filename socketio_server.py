@@ -225,7 +225,8 @@ class LayerBlock(Block):
         ])
         self.outputs = OrderedDict([
             ('output', []),
-            ('weights', [])
+            ] + [
+            ("w"+str(i), []) for (i, _) in enumerate(layer.get_weights())
         ])
 
     def to_json(self):
@@ -238,19 +239,16 @@ class LayerBlock(Block):
 
     def eval(self, gs, inputs):
         x = inputs['input']
+        eval_result = OrderedDict([("w"+str(i), v) for (i, v) in enumerate(self.layer.get_weights())])
         if self.layer is None or x is None:
-            return {
-                'output': None,
-                'weights': self.layer.get_weights()
-            }
+            eval_result.update({'output': None})
+            return eval_result
 
         with self.layer.output.graph.as_default():
             layerFunc = K.function(
                 [self.layer.input] + [K.learning_phase()], [self.layer.output])
-            return {
-                'output': layerFunc(inputs=[x])[0],
-                'weights': self.layer.get_weights()
-            }
+            eval_result.update({'output': layerFunc(inputs=[x])[0]})
+            return eval_result
 
 
 class VariableBlock(Block):

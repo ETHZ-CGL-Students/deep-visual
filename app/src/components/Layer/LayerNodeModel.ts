@@ -9,8 +9,9 @@ export class LayerNodeModel extends BaseNodeModel {
 
 		this.color = '#70C1B3';
 		this.addPort(new BasePortModel(true, 'input'));
-		this.addPort(new BasePortModel(false, 'output'));
-		this.addPort(new BasePortModel(false, 'weights'));
+		block.outputs.forEach((output) => {
+			this.addPort(new BasePortModel(false, output));
+		});
 	}
 
 	// Don't allow deleting layer nodes
