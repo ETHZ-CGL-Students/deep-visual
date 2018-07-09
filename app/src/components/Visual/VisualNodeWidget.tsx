@@ -1,6 +1,7 @@
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/mode/python/python';
 import * as React from 'react';
+const Plot = require('react-plotly.js');
 
 import { BaseNodeProps, BaseNodeWidget } from '../Base/BaseNodeWidget';
 
@@ -33,25 +34,22 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			ls.push(curr.length);
 			curr = curr[0];
 		}
-
+		
 		return (
 			<>
-				<div>{ls.join(' x ')}</div>
-				<table>
-					<tbody>
-						{node.out
-							.slice(0, 10)
-							.map((row: any, x: number) => (
-								<tr key={'r' + x}>
-									{row
-										.slice(0, 10)
-										.map((cell: any, y: number) => (
-											<td key={'c' + x + '-' + y}>{cell.toFixed(3)}</td>
-										))}
-								</tr>
-							))}
-					</tbody>
-				</table>
+				<Plot
+					data={[
+						{
+							z: node.out,
+							type: 'heatmap',
+							colorbar: {thickness: 10}
+						},
+					]}
+					layout={{
+						width: 320, height: 320,
+						margin: {t: 0, l: 0, r: 0, b: 0}
+					}}
+				/>
 			</>
 		);
 	}
