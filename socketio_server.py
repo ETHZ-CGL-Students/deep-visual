@@ -410,7 +410,7 @@ def addBlock(args):
     if t == 'code':
         newBlock = CodeBlock(args['code'])
     elif t == 'var':
-        newBlock = VariableBlock(name=args['var'], value=vars[name])
+        newBlock = VariableBlock(name=args['var'], value=vars[args['var']])
     elif t == 'visual':
         newBlock = VisualBlock()
 
