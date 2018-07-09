@@ -60,8 +60,6 @@ export class CodeNodeWidget extends BaseNodeWidget<
 		return (
 			<div
 				onMouseDown={e => {
-					e.stopPropagation();
-					e.preventDefault();
 					node.setSelected(false);
 				}}
 				style={{ cursor: 'text' }}
