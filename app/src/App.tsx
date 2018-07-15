@@ -142,6 +142,10 @@ class App extends React.Component<Props, OwnState> {
 			node.resumeEvents();
 			this.forceUpdate();
 		});
+
+		API.onEvalResults(id => {
+			console.log('New results available: ' + id);
+		});
 	}
 
 	addNodeForBlock(b: Block) {
@@ -203,7 +207,7 @@ class App extends React.Component<Props, OwnState> {
 
 	evalAll() {
 		if (this.state.blocks) {
-			this.state.blocks.forEach((block) => {
+			this.state.blocks.forEach(block => {
 				if (block instanceof VisualNodeModel) {
 					block.eval();
 				}
@@ -214,11 +218,11 @@ class App extends React.Component<Props, OwnState> {
 	togglePlay() {
 		if (this.playInterval) {
 			clearInterval(this.playInterval);
-			this.setState({playing: false});
+			this.setState({ playing: false });
 			this.playInterval = null;
 		} else {
 			this.playInterval = setInterval(this.evalAll.bind(this), 5000);
-			this.setState({playing: true});
+			this.setState({ playing: true });
 		}
 	}
 
@@ -267,12 +271,18 @@ class App extends React.Component<Props, OwnState> {
 						)}
 				</div>
 				<div id="controls">
-					<button style={{alignSelf: 'center', height: 21}} onClick={() => this.evalAll()}>Run all</button>
+					<button
+						style={{ alignSelf: 'center', height: 21 }}
+						onClick={() => this.evalAll()}
+					>
+						Run all
+					</button>
 					<button
 						className={this.state.playing ? 'play-on' : ''}
-						style={{alignSelf: 'center', height: 21, borderRadius: '4px'}}
+						style={{ alignSelf: 'center', height: 21, borderRadius: '4px' }}
 						onClick={() => this.togglePlay()}
-					>Play
+					>
+						Play
 					</button>
 				</div>
 			</div>

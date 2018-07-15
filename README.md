@@ -15,18 +15,9 @@ Bachelor Thesis, Marco Crespi, 2018 @ ETHZ
 1.  `cd app`
 1.  `npm install`
 
-### Redis (from: https://redis.io/topics/quickstart)
-
-1.  `wget http://download.redis.io/redis-stable.tar.gz`
-1.  `tar xvzf redis-stable.tar.gz`
-1.  `cd redis-stable`
-1.  `make`
-1.  `make install`
-
 ## Run
 
-Start three command prompts
+Start two command prompts
 
-* `redis-server`
-* `python3 test2.py`
-* `cd app && npm start`
+- `python3 test2.py`
+- `cd app && npm start`

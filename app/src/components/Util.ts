@@ -3,6 +3,10 @@ export function readMatrixFromBuffer(data: ArrayBuffer) {
 	const numDims = new Int32Array(data, off, 1)[0];
 	off += 4;
 
+	if (numDims === 0) {
+		return [];
+	}
+
 	const dims = new Int32Array(data, off, numDims);
 	off += numDims * 4;
 

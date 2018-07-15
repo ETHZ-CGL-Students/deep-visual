@@ -1,28 +1,25 @@
 import eventlet
-import inspect
 import json
-import keras
-import time
 import sys
 import io
 import uuid
-import json
 import contextlib
+import socketio
 import pickle
-import traceback as tb
 import numpy as np
-import tensorflow as tf
+import traceback as tb
 
 from abc import ABCMeta, abstractmethod
-from collections import OrderedDict
-from types import ModuleType
-from threading import Thread
+from collections import OrderedDict, deque
+from eventlet.green import threading, Queue, time
 from flask import Flask
-from flask_socketio import SocketIO, emit
-from keras import Model
-from keras import backend as K
+from flask_socketio import SocketIO
+from threading import Thread
+from types import ModuleType
+from keras import Model, backend as K
 from keras.layers import Input, InputLayer
 from keras.optimizers import RMSprop
+from keras.callbacks import Callback
 
 eventlet.monkey_patch(socket=True)
 
@@ -52,11 +49,51 @@ class MyJSONWrapper(object):
         return json.loads(*args, **kwargs)
 
 
+e = threading.Event()
+queue = Queue.Queue()
+
+
+class LocalManager(socketio.PubSubManager):
+    name = 'local'
+
+    def initialize(self):
+        super(LocalManager, self).initialize()
+
+        # This background process is used to inform our web server thread
+        # of new messages arriving in the handler. We need this because
+        # sending messages from a normal python thread -> eventlet doesn't work.
+        # And we can't run model training on the eventlet (web server) thread
+        # because that would block the whole eventlet thread
+        def signal():
+            while True:
+                if queue.qsize() > 0:
+                    e.set()
+                time.sleep(0.1)
+        self.server.start_background_task(target=signal)
+
+    def _publish(self, data):
+        queue.put(data)
+
+    def _do_listen(self):
+        while True:
+            e.wait()
+            for _ in range(queue.qsize()):
+                msg = queue.get_nowait()
+                queue.task_done()
+                yield msg
+            e.clear()
+
+    def _listen(self):
+        for message in self._do_listen():
+            yield message
+
+
+
 # Setup Flask web server & socketio
-# sio is used when running on the main thread
-# socketio is used in off-main threads and transfers data via redis to 'sio'
+mgr = LocalManager()
 app = Flask(__name__)
-sio = SocketIO(app, json=MyJSONWrapper)
+sio = SocketIO(app=app, debug=True, async_mode='eventlet',
+               json=MyJSONWrapper, client_manager=LocalManager(""))
 
 
 # Context manager allows us to capture 'print' statements and other output
@@ -75,7 +112,7 @@ def serialize_matrix(mat):
     """ Serialize a matrix to an array of bytes: [nDims] [dim1, dim2, ...] [values]"""
 
     if mat is None or len(mat) == 0:
-        return ""
+        return (0).to_bytes(4, 'little')
 
     # First get the size of each dim, and the amount of dims
     dims = mat.shape
@@ -225,7 +262,7 @@ class LayerBlock(Block):
         ])
         self.outputs = OrderedDict([
             ('output', []),
-            ] + [
+        ] + [
             ("w"+str(i), []) for (i, _) in enumerate(layer.get_weights())
         ])
 
@@ -239,7 +276,8 @@ class LayerBlock(Block):
 
     def eval(self, gs, inputs):
         x = inputs['input']
-        eval_result = OrderedDict([("w"+str(i), v) for (i, v) in enumerate(self.layer.get_weights())])
+        eval_result = OrderedDict(
+            [("w"+str(i), v) for (i, v) in enumerate(self.layer.get_weights())])
         if self.layer is None or x is None:
             eval_result.update({'output': None})
             return eval_result
@@ -312,6 +350,8 @@ vars = {}
 blocks = []
 # Links between blocks
 links = []
+# Cached execution results
+results = {}
 
 
 def saveData():
@@ -378,13 +418,13 @@ def loadData():
 
 
 # Socket.IO connection event
-@sio.on('connect', namespace='/')
+@sio.on('connect')
 def connect():
     print("connect")
 
 
 # Socket.IO disconnect event
-@sio.on('disconnect', namespace='/')
+@sio.on('disconnect')
 def disconnect():
     print('disconnect')
 
@@ -401,14 +441,14 @@ def getData():
 
 # Creating a new block
 @sio.on('block_create')
-def addBlock(args):
-    t = args['type']
+def addBlock(data):
+    t = data['type']
     newBlock = None
 
     if t == 'code':
-        newBlock = CodeBlock(args['code'])
+        newBlock = CodeBlock(data['code'])
     elif t == 'var':
-        newBlock = VariableBlock(name=args['var'], value=vars[args['var']])
+        newBlock = VariableBlock(name=data['var'], value=vars[data['var']])
     elif t == 'visual':
         newBlock = VisualBlock()
 
@@ -421,13 +461,13 @@ def addBlock(args):
 
 # Edit code of a block
 @sio.on('block_change')
-def editBlock(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def editBlock(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         return
 
-    if isinstance(block, CodeBlock) and 'code' in args:
-        block.code = args['code']
+    if isinstance(block, CodeBlock) and 'code' in data:
+        block.code = data['code']
 
     sio.emit('block_change', data=block)
     saveData()
@@ -435,23 +475,23 @@ def editBlock(args):
 
 # Move block around
 @sio.on('block_move')
-def moveBlock(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def moveBlock(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         return
 
-    block.x = args['x']
-    block.y = args['y']
+    block.x = data['x']
+    block.y = data['y']
     sio.emit('block_move', data=block)
     saveData()
 
 
 # Deleting blocks
 @sio.on('block_delete')
-def deleteBlock(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def deleteBlock(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        print('block_delete: Could not find block ' + args['id'])
+        print('block_delete: Could not find block ' + data['id'])
         return
 
     if isinstance(block, LayerBlock):
@@ -477,13 +517,74 @@ def deleteBlock(args):
     saveData()
 
 
-# Evaluating a block (="running")
-@sio.on('block_eval')
-def evalBlock(args):
+# Evaluate all blocks
+@sio.on('block_eval_all')
+def evalAllBlocks():
     global blocks
 
+    print('Eval all')
+
+    # Build our execution tree
+    bs = []
+    # Add all visual blocks
+    todo = [b for b in blocks if isinstance(b, VisualBlock)]
+    while len(todo) > 0:
+        b = todo.pop()
+        ins = list(
+            map(lambda l: l.fromBlock,
+                filter(lambda l: l is not None, b.inputs.values())))
+        bs.extend(ins)
+        todo.extend(ins)
+
+    bs.reverse()
+    outs = {}
+
+    # Save our globals, they will be exposed to the block eval
+    gs = globals()
+
+    try:
+        # Traverse the blocks
+        for b in bs:
+            # Collect inputs for this block
+            inputs = {}
+
+            # Set inputs from links
+            for k, l in b.inputs.items():
+                if l is None:
+                    inputs[k] = None
+                else:
+                    inputs[k] = outs[l.fromBlock.id][l.fromPort]
+
+            # Run the function
+            out = b.eval(gs, inputs)
+
+            # Save the output ports of our execution
+            outs[b.id] = out
+
+        # Generate a unique id for this execution
+        execId = str(time.time())
+
+        # Cache our execution results using a unique id
+        results[execId] = outs
+
+        # Inform all clients about the exection
+        sio.emit('eval_results', data=execId)
+
+        # Return the id to the client so it can get the results
+        return [None, execId]
+    except:
+        # Return the error to the client
+        return [tb.format_exc(), None]
+
+
+# Evaluating a block (="running")
+@sio.on('block_eval')
+def evalBlock(data):
+    global blocks
+    global results
+
     # Find the code block by id
-    block = next((b for b in blocks if b.id == args['id']), None)
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         return ['Invalid block']
 
@@ -528,6 +629,15 @@ def evalBlock(args):
             # Save the output ports of our execution
             outs[b.id] = out
 
+        # Generate a unique id for this execution/run
+        execId = str(uuid.uuid4())
+
+        # Cache our execution results using a unique id
+        results[execId] = outs
+
+        # Inform all clients about the exection
+        sio.emit('eval_results', data=execId)
+
         # Get the output for the block we ran the eval socket.io event
         res = outs[block.id]
 
@@ -542,16 +652,43 @@ def evalBlock(args):
         return [tb.format_exc(), None]
 
 
+# Getting the results of a certain execution for a certain block
+@sio.on('eval_get')
+def getEval(data):
+    if data['id'] not in results:
+        return ['Invalid execution']
+
+    allRes = results[data['id']]
+
+    # Find the block by id
+    block = next((b for b in blocks if b.id == data['blockId']), None)
+    if block is None:
+        return ['Invalid block']
+
+    # Check if we have execution results for that block
+    if data['blockId'] not in allRes:
+        return ['Block was not executed']
+
+    res = allRes[data['blockId']]
+
+    # Return our results to the client
+    # If it's a visual block return binary data
+    if isinstance(block, VisualBlock):
+        return serialize_matrix(res['__output__'])
+    else:
+        return [None, res]
+
+
 # Creating a port
 @sio.on('port_create')
-def createPort(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def createPort(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        print('port_create: Invalid block id ' + args['id'])
+        print('port_create: Invalid block id ' + data['id'])
         return
 
-    portName = args['name']
-    if args['input'] == True:
+    portName = data['name']
+    if data['input'] == True:
         if portName in block.inputs:
             print('port_create: Port name in use: ' + portName)
             return
@@ -568,15 +705,15 @@ def createPort(args):
 
 # Renaming a port
 @sio.on('port_rename')
-def renamePort(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def renamePort(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        print('port_rename: Invalid block id ' + args['id'])
+        print('port_rename: Invalid block id ' + data['id'])
         return
 
-    oldName = args['oldName']
-    newName = args['newName']
-    if args['input'] == True:
+    oldName = data['oldName']
+    newName = data['newName']
+    if data['input'] == True:
         block.inputs = OrderedDict([(newName, v) if k == oldName else (k, v)
                                     for k, v in block.inputs.items()])
         # block.inputs[newName] = block.inputs.pop(oldName, None)
@@ -598,14 +735,14 @@ def renamePort(args):
 # Deleting a port
 # TODO: Clean up the links that this port had
 @sio.on('port_delete')
-def deletePort(args):
-    block = next((b for b in blocks if b.id == args['id']), None)
+def deletePort(data):
+    block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        print('port_delete: Invalid block id ' + args['id'])
+        print('port_delete: Invalid block id ' + data['id'])
         return
 
-    portName = args['name']
-    if args['input'] == True:
+    portName = data['name']
+    if data['input'] == True:
         block.inputs.pop(portName, None)
     else:
         block.outputs.pop(portName, None)
@@ -616,23 +753,23 @@ def deletePort(args):
 
 # Connecting blocks together
 @sio.on('link_create')
-def createLink(args):
-    fromBlock = next((b for b in blocks if b.id == args['fromId']), None)
+def createLink(data):
+    fromBlock = next((b for b in blocks if b.id == data['fromId']), None)
     if fromBlock is None:
-        print('link_create: Invalid block id ' + args['fromId'])
+        print('link_create: Invalid block id ' + data['fromId'])
         return
 
-    toBlock = next((b for b in blocks if b.id == args['toId']), None)
+    toBlock = next((b for b in blocks if b.id == data['toId']), None)
     if toBlock is None:
-        print('link_create: Invalid block id ' + args['toId'])
+        print('link_create: Invalid block id ' + data['toId'])
         return
 
-    fromPort = args['fromPort']
+    fromPort = data['fromPort']
     if fromPort not in fromBlock.outputs:
         print('link_create: Invalid output port ' + fromPort + ' on block ' +
               fromBlock.id)
         return
-    toPort = args['toPort']
+    toPort = data['toPort']
     if toPort not in toBlock.inputs:
         print('link_create: Invalid input port ' + toPort + ' on block ' +
               toBlock.id)
@@ -658,13 +795,13 @@ def createLink(args):
 
 # Disconnecting blocks
 @sio.on('link_delete')
-def deleteLink(args):
+def deleteLink(data):
     global links
 
     # Find link
-    link = next((l for l in links if l.id == args['id']), None)
+    link = next((l for l in links if l.id == data['id']), None)
     if link is None:
-        print('link_delete: Invalid link id ' + args['id'])
+        print('link_delete: Invalid link id ' + data['id'])
         return
 
     if link.implicit is True:
@@ -679,6 +816,32 @@ def deleteLink(args):
     links.remove(link)
     sio.emit('link_delete', data=link)
     saveData()
+
+
+class FitCallback(Callback):
+    last_time = 0
+
+    def set_params(self, params):
+        mgr.emit('set_params', params)
+
+    def on_train_begin(self, logs={}):
+        mgr.emit('train_begin', logs)
+
+    def on_train_end(self, logs={}):
+        mgr.emit('train_end', logs)
+
+    def on_batch_begin(self, batch, logs={}):
+        if (time.time() - self.last_time < 1):
+            return
+        mgr.emit('batch_begin', batch)
+        self.last_time = time.time()
+
+    def on_epoch_begin(self, epoch, logs={}):
+        mgr.emit('epoch_begin', epoch)
+
+    def on_epoch_end(self, epoch, logs={}):
+        evalAllBlocks()
+        mgr.emit('epoch_end', epoch)
 
 
 def expose_model(model):
@@ -735,16 +898,13 @@ def expose_variables(newVars):
 def start():
     """ Start our webserver and return the socket.io 
     client to which we can attach our own events """
-
     # We wait with loading blocks until here so that the model layers
     # are exposed, because they might be referenced in one of the
     # code blocks 'next' or 'prev' arrays
     loadData()
 
-    def thread_run():
+    def run():
         sio.run(app, port=8080)
 
-    thread = Thread(target=thread_run)
-    thread.start()
-
-    return sio
+    t = Thread(target=run)
+    t.start()

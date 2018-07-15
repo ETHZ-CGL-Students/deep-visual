@@ -1,16 +1,16 @@
 import keras
 import os
+import eventlet
 import time
 import numpy as np
 import tensorflow as tf
-from threading import Thread
 
 from keras.datasets import mnist
 from keras.models import Sequential, Model, load_model
 from keras.optimizers import RMSprop
 from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten
 
-from socketio_server import expose_model, expose_variables, start
+from socketio_server import expose_model, expose_variables, start, FitCallback
 
 # -- Test model #1
 # if os.path.isfile("save/model.h5"):
@@ -61,8 +61,9 @@ expose_variables(locals())
 # Start the web-app
 start()
 
-model.fit(x_train, y_train, epochs=epochs)
-
+# Fit our model
+model.fit(x_train, y_train, verbose=True,
+          epochs=epochs, callbacks=[FitCallback()])
 
 # time.sleep(30)
 # model.fit(

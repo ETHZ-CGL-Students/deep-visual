@@ -22,6 +22,8 @@ export type PortRenameListener = (
 
 export type LinkListener = (link: Link) => void;
 
+export type EvalListener = (id: string) => void;
+
 class API {
 	setParams: SetParamsListener[] = [];
 	trainBegin: Listener[] = [];
@@ -40,6 +42,8 @@ class API {
 
 	linkCreate: LinkListener[] = [];
 	linkDelete: LinkListener[] = [];
+
+	evalResult: EvalListener[] = [];
 
 	constructor() {
 		// Subscribe to events
@@ -68,6 +72,9 @@ class API {
 		socket.on('block_delete', (block: Block) =>
 			this.blockDelete.forEach(l => l(block))
 		);
+		socket.on('eval_results', (id: string) =>
+			this.evalResult.forEach(l => l(id))
+		);
 
 		socket.on('port_create', ({ id, port }: { id: string; port: string }) =>
 			this.portCreate.forEach(l => l(id, port))
@@ -87,6 +94,14 @@ class API {
 		socket.on('link_delete', (link: Link) =>
 			this.linkDelete.forEach(l => l(link))
 		);
+
+		socket.on('batch_begin', (batch: number) => {
+			console.log('Batch: ' + batch);
+		});
+
+		socket.on('epoch_begin', (batch: number) => {
+			console.log('Epoch: ' + batch);
+		});
 	}
 
 	// Training events
@@ -129,6 +144,11 @@ class API {
 	}
 	onPortDelete(listener: PortListener) {
 		this.portDelete.push(listener);
+	}
+
+	// Eval
+	onEvalResults(listener: EvalListener) {
+		this.evalResult.push(listener);
 	}
 
 	getData(
@@ -184,6 +204,10 @@ class API {
 	}
 	deleteLink(id: string) {
 		socket.emit('link_delete', { id });
+	}
+
+	getResults(id: string, blockId: string) {
+		socket.emit('eval_get', { id, blockId });
 	}
 
 	startTraining() {
