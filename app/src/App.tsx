@@ -145,6 +145,19 @@ class App extends React.Component<Props, OwnState> {
 
 		API.onEvalResults(id => {
 			console.log('New results available: ' + id);
+			// If we're in play mode then we always want to show new results
+			// as soon as they become available, so fetch all new data
+			if (this.state.playing) {
+				this.state.blocks.forEach(block => {
+					if (block instanceof VisualNodeModel) {
+						API.getResults(id, block.id, (err, out) => {
+							block.err = err;
+							block.out = out;
+							this.forceUpdate();
+						});
+					}
+				});
+			}
 		});
 	}
 
@@ -206,24 +219,23 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
-		if (this.state.blocks) {
+		API.evalAllBlocks(id => {
+			console.log(id);
+			// Grab the results for each block
 			this.state.blocks.forEach(block => {
 				if (block instanceof VisualNodeModel) {
-					block.eval();
+					API.getResults(id, block.id, (err, out) => {
+						block.err = err;
+						block.out = out;
+						this.forceUpdate();
+					});
 				}
 			});
-		}
+		});
 	}
 
 	togglePlay() {
-		if (this.playInterval) {
-			clearInterval(this.playInterval);
-			this.setState({ playing: false });
-			this.playInterval = null;
-		} else {
-			this.playInterval = setInterval(this.evalAll.bind(this), 5000);
-			this.setState({ playing: true });
-		}
+		this.setState({ playing: !this.state.playing });
 	}
 
 	render() {

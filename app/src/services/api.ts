@@ -188,6 +188,9 @@ class API {
 			}
 		});
 	}
+	evalAllBlocks(callback: (id: string) => void) {
+		socket.emit('block_eval_all', callback);
+	}
 
 	createPort(id: string, input: boolean, name: string) {
 		socket.emit('port_create', { id, input, name });
@@ -206,8 +209,18 @@ class API {
 		socket.emit('link_delete', { id });
 	}
 
-	getResults(id: string, blockId: string) {
-		socket.emit('eval_get', { id, blockId });
+	getResults(
+		id: string,
+		blockId: string,
+		callback: (err: string | null, out: any) => void
+	) {
+		socket.emit('eval_get', { id, blockId }, (data: any) => {
+			if (data instanceof ArrayBuffer) {
+				callback(null, readMatrixFromBuffer(data));
+			} else {
+				callback(data[0], data[1]);
+			}
+		});
 	}
 
 	startTraining() {

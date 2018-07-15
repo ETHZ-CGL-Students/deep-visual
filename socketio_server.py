@@ -517,17 +517,13 @@ def deleteBlock(data):
     saveData()
 
 
-# Evaluate all blocks
-@sio.on('block_eval_all')
-def evalAllBlocks():
-    global blocks
-
-    print('Eval all')
+# Eval an array of blocks, building the execution tree required
+def evalBlocks(blocks):
+    global results
 
     # Build our execution tree
-    bs = []
-    # Add all visual blocks
-    todo = [b for b in blocks if isinstance(b, VisualBlock)]
+    bs = blocks.copy()
+    todo = blocks.copy()
     while len(todo) > 0:
         b = todo.pop()
         ins = list(
@@ -542,47 +538,59 @@ def evalAllBlocks():
     # Save our globals, they will be exposed to the block eval
     gs = globals()
 
-    try:
-        # Traverse the blocks
-        for b in bs:
-            # Collect inputs for this block
-            inputs = {}
+    # Traverse the blocks
+    for b in bs:
+        # Collect inputs for this block
+        inputs = {}
 
-            # Set inputs from links
-            for k, l in b.inputs.items():
-                if l is None:
-                    inputs[k] = None
-                else:
-                    inputs[k] = outs[l.fromBlock.id][l.fromPort]
+        # Set inputs from links
+        for k, l in b.inputs.items():
+            if l is None:
+                inputs[k] = None
+            else:
+                # If one of our inputs had an error then we just skip this block
+                if outs[l.fromBlock.id][1] is None:
+                    outs[b.id] = [None, None]
+                    continue
+                # Otherwise set the input to the output of that block
+                inputs[k] = outs[l.fromBlock.id][1][l.fromPort]
 
+        try:
             # Run the function
-            out = b.eval(gs, inputs)
+            out = [None, b.eval(gs, inputs)]
+        except:
+            # Save any error
+            out = [tb.format_exc(), None]
 
-            # Save the output ports of our execution
-            outs[b.id] = out
+        # Save the output ports of our execution
+        outs[b.id] = out
 
-        # Generate a unique id for this execution
-        execId = str(time.time())
+    # Generate a unique id for this execution
+    execId = str(time.time())
 
-        # Cache our execution results using a unique id
-        results[execId] = outs
+    # Cache our execution results using a unique id
+    results[execId] = outs
 
-        # Inform all clients about the exection
-        sio.emit('eval_results', data=execId)
+    # Inform all clients about the exection
+    sio.emit('eval_results', data=execId)
 
-        # Return the id to the client so it can get the results
-        return [None, execId]
-    except:
-        # Return the error to the client
-        return [tb.format_exc(), None]
+    # Return the id to the client so it can get the results
+    return execId
+
+
+# Evaluate all (visual) blocks
+@sio.on('block_eval_all')
+def evalAllBlocks():
+    print('Eval all')
+
+    execId = evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
+
+    return execId
 
 
 # Evaluating a block (="running")
 @sio.on('block_eval')
 def evalBlock(data):
-    global blocks
-    global results
-
     # Find the code block by id
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
@@ -593,63 +601,21 @@ def evalBlock(data):
 
     print('Eval: ' + block.id)
 
-    # Build our execution tree
-    bs = [block]
-    todo = [block]
-    while len(todo) > 0:
-        b = todo.pop()
-        ins = list(
-            map(lambda l: l.fromBlock,
-                filter(lambda l: l is not None, b.inputs.values())))
-        bs.extend(ins)
-        todo.extend(ins)
+    # Run the evaluation for our one block
+    execId = evalBlocks([block])
 
-    bs.reverse()
-    outs = {}
+    # Get the output for the block we ran the eval socket.io event
+    res = results[execId][block.id]
 
-    # Save our globals, they will be exposed to the block eval
-    gs = globals()
-
-    try:
-        # Traverse the blocks
-        for b in bs:
-            # Collect inputs for this block
-            inputs = {}
-
-            # Set inputs from links
-            for k, l in b.inputs.items():
-                if l is None:
-                    inputs[k] = None
-                else:
-                    inputs[k] = outs[l.fromBlock.id][l.fromPort]
-
-            # Run the function
-            out = b.eval(gs, inputs)
-
-            # Save the output ports of our execution
-            outs[b.id] = out
-
-        # Generate a unique id for this execution/run
-        execId = str(uuid.uuid4())
-
-        # Cache our execution results using a unique id
-        results[execId] = outs
-
-        # Inform all clients about the exection
-        sio.emit('eval_results', data=execId)
-
-        # Get the output for the block we ran the eval socket.io event
-        res = outs[block.id]
-
-        # Return our results to the client
-        # If the client clicked eval on a visual block then return binary data
+    # Return our results to the client
+    # If the client clicked eval on a visual block then return binary data
+    if res[0] is None:
         if isinstance(block, VisualBlock):
-            return serialize_matrix(res['__output__'])
+            return serialize_matrix(res[1]['__output__'])
         else:
-            return [None, res]
-    except:
-        # Return the error to the client
-        return [tb.format_exc(), None]
+            return [None, res[1]]
+    else:
+        return [res[0], None]
 
 
 # Getting the results of a certain execution for a certain block
@@ -669,14 +635,18 @@ def getEval(data):
     if data['blockId'] not in allRes:
         return ['Block was not executed']
 
+    # Get the results from the cache
     res = allRes[data['blockId']]
 
     # Return our results to the client
     # If it's a visual block return binary data
-    if isinstance(block, VisualBlock):
-        return serialize_matrix(res['__output__'])
+    if res[0] is None:
+        if isinstance(block, VisualBlock):
+            return serialize_matrix(res[1]['__output__'])
+        else:
+            return [None, res[1]]
     else:
-        return [None, res]
+        return [res[0], None]
 
 
 # Creating a port
