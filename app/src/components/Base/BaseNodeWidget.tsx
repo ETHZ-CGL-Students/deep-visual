@@ -1,4 +1,6 @@
 import * as React from 'react';
+import * as tinycolor from 'tinycolor2';
+
 import {
 	BaseWidget,
 	BaseWidgetProps,
@@ -69,7 +71,10 @@ export class BaseNodeWidget<
 		return (
 			<div
 				{...this.getProps()}
-				style={{ background: node.color, maxWidth: 600 }}
+				style={{
+					background: tinycolor(node.color).setAlpha(0.8),
+					maxWidth: 600
+				}}
 			>
 				<div className={this.bem('__title')}>
 					<div className={this.bem('__name')}>{node.name}</div>
@@ -79,7 +84,7 @@ export class BaseNodeWidget<
 						{node.getInPorts().map(p => this.generatePort(p))}
 						{canEditPorts && (
 							<div style={{ display: 'flex' }}>
-								<button onClick={() => this.addPort(true)}>+</button>
+								<a className="round-button" onClick={() => this.addPort(true)}>＋</a>
 							</div>
 						)}
 					</div>
@@ -87,7 +92,7 @@ export class BaseNodeWidget<
 						{node.getOutPorts().map(p => this.generatePort(p))}
 						{this.props.canEditPorts && (
 							<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-								<button onClick={() => this.addPort(false)}>+</button>
+								<a className="round-button" onClick={() => this.addPort(false)}>＋</a>
 							</div>
 						)}
 					</div>

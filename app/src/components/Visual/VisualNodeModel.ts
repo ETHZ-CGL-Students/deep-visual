@@ -7,7 +7,7 @@ export class VisualNodeModel extends BaseNodeModel {
 	constructor(block: VisualBlock) {
 		super('visual', block.id);
 
-		this.color = 'rgb(173, 134, 19)';
+		this.color = '#247BA0';
 		this.addPort(new BasePortModel(true, 'input'));
 	}
 }

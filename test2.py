@@ -43,6 +43,7 @@ model.add(Dense(512, activation='relu'))
 model.add(Dropout(0.2))
 model.add(Dense(num_classes, activation='softmax'))
 
+
 model.compile(
     loss='categorical_crossentropy', optimizer=RMSprop(), metrics=['accuracy'])
 
@@ -59,6 +60,9 @@ expose_variables(locals())
 
 # Start the web-app
 start()
+
+model.fit(x_train, y_train, epochs=epochs)
+
 
 # time.sleep(30)
 # model.fit(
