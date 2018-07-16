@@ -1,9 +1,6 @@
+import CircularProgress from '@material-ui/core/CircularProgress';
 import * as React from 'react';
-import {
-	DiagramEngine,
-	DiagramModel,
-	DiagramWidget
-} from 'storm-react-diagrams';
+import { DiagramEngine, DiagramModel, DiagramWidget } from 'storm-react-diagrams';
 
 import { Block, isCode, isLayer, isVar, isVisual, Variable } from './types';
 
@@ -25,6 +22,8 @@ const debounce = require('lodash.debounce');
 interface Props {}
 
 interface OwnState {
+	connected: boolean;
+	loading: boolean;
 	blocks: BaseNodeModel[];
 	links: BaseLinkModel[];
 	vars: Variable[];
@@ -44,6 +43,8 @@ class App extends React.Component<Props, OwnState> {
 		super(props);
 		this.playInterval = null;
 		this.state = {
+			connected: false,
+			loading: true,
 			blocks: [],
 			links: [],
 			vars: [],
@@ -66,21 +67,23 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
-		API.getData(({ blocks, links, vars }) => {
-			console.log(blocks);
-			console.log(links);
-			console.log(vars);
+		API.onConnet(() => {
+			this.setState({ connected: true });
+		});
 
+		API.onDisconnet(() => {
+			this.setState({ connected: false });
+		});
+
+		API.getData(({ blocks, links, vars }) => {
 			vars.sort((a, b) => a.name.localeCompare(b.name));
-			this.setState({ vars });
+			this.setState({ vars, loading: false });
 
 			const blockModels: { [x: string]: BaseNodeModel } = {};
 			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
 
 			links.forEach(link => {
-				const from = blockModels[link.fromId].getPort(
-					link.fromPort
-				) as BasePortModel;
+				const from = blockModels[link.fromId].getPort(link.fromPort) as BasePortModel;
 				const to = blockModels[link.toId].getPort(link.toPort) as BasePortModel;
 
 				if (!from || !to) {
@@ -192,9 +195,7 @@ class App extends React.Component<Props, OwnState> {
 		});
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
 		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
-		node.onRenamePort((port, oldName) =>
-			API.renamePort(b.id, port.in, oldName, port.name)
-		);
+		node.onRenamePort((port, oldName) => API.renamePort(b.id, port.in, oldName, port.name));
 		node.onDeletePort(port => API.deletePort(b.id, port.in, port.name));
 		node.addListener({
 			entityRemoved: () => API.deleteBlock(node.id)
@@ -258,11 +259,7 @@ class App extends React.Component<Props, OwnState> {
 					<h3 className="block-title">Variables</h3>
 					<div id="menu-var">
 						{vars.map(v => (
-							<div
-								key={v.name}
-								className="menu-entry"
-								onClick={() => this.addVariableBlock(v.name)}
-							>
+							<div key={v.name} className="menu-entry" onClick={() => this.addVariableBlock(v.name)}>
 								<div>{v.name}</div>
 								<div className="type">{v.type}</div>
 							</div>
@@ -283,10 +280,7 @@ class App extends React.Component<Props, OwnState> {
 						)}
 				</div>
 				<div id="controls">
-					<button
-						style={{ alignSelf: 'center', height: 21 }}
-						onClick={() => this.evalAll()}
-					>
+					<button style={{ alignSelf: 'center', height: 21 }} onClick={() => this.evalAll()}>
 						Run all
 					</button>
 					<button
@@ -297,6 +291,16 @@ class App extends React.Component<Props, OwnState> {
 						Play
 					</button>
 				</div>
+				{(!this.state.connected || this.state.loading) && (
+					<div id="overlay">
+						<div>
+							<div style={{ marginBottom: 10 }}>
+								{this.state.connected ? 'Loading' : this.state.loading ? 'Connecting' : 'Reconnecting'}...
+							</div>
+							<CircularProgress />
+						</div>
+					</div>
+				)}
 			</div>
 		);
 	}

@@ -1,9 +1,9 @@
-import * as openSocket from 'socket.io-client';
+import * as io from 'socket.io-client';
 
 import { readMatrixFromBuffer } from '../components/Util';
 import { Block, Link, Variable } from '../types';
 
-const socket = openSocket('http://localhost:8080');
+const socket = io('http://localhost:8080');
 
 export type Listener = () => void;
 export type SetParamsListener = (epochs: number, batches: number) => void;
@@ -14,17 +14,16 @@ export type BlockListener = (blocks: Block) => void;
 export type BlocksListener = (blocks: Block[]) => void;
 
 export type PortListener = (id: string, port: string) => void;
-export type PortRenameListener = (
-	id: string,
-	port: string,
-	oldName: string
-) => void;
+export type PortRenameListener = (id: string, port: string, oldName: string) => void;
 
 export type LinkListener = (link: Link) => void;
 
 export type EvalListener = (id: string) => void;
 
 class API {
+	connect: Listener[] = [];
+	disconnect: Listener[] = [];
+
 	setParams: SetParamsListener[] = [];
 	trainBegin: Listener[] = [];
 	trainEnd: Listener[] = [];
@@ -45,55 +44,42 @@ class API {
 
 	evalResult: EvalListener[] = [];
 
+	connected = false;
+
 	constructor() {
 		// Subscribe to events
+		socket.on('connect', () => {
+			this.connected = true;
+			this.connect.forEach(l => l());
+		});
+		socket.on('disconnect', () => {
+			this.connected = false;
+			this.disconnect.forEach(l => l());
+		});
+
 		socket.on('set_params', (data: any) => {
 			const batches = Math.ceil(data.samples / data.batch_size);
 			this.setParams.forEach(l => l(data.epochs, batches));
 		});
 		socket.on('train_begin', () => this.trainBegin.forEach(l => l()));
 		socket.on('train_end', () => this.trainEnd.forEach(l => l()));
-		socket.on('epoch_begin', (epoch: number) =>
-			this.epochBegin.forEach(l => l(epoch))
-		);
-		socket.on('batch_begin', (batch: number) =>
-			this.epochBegin.forEach(l => l(batch))
-		);
+		socket.on('epoch_begin', (epoch: number) => this.epochBegin.forEach(l => l(epoch)));
+		socket.on('batch_begin', (batch: number) => this.epochBegin.forEach(l => l(batch)));
 
-		socket.on('block_create', (block: Block) =>
-			this.blockCreate.forEach(l => l(block))
-		);
-		socket.on('block_change', (block: Block) =>
-			this.blockChange.forEach(l => l(block))
-		);
-		socket.on('block_move', (block: Block) =>
-			this.blockMove.forEach(l => l(block))
-		);
-		socket.on('block_delete', (block: Block) =>
-			this.blockDelete.forEach(l => l(block))
-		);
-		socket.on('eval_results', (id: string) =>
-			this.evalResult.forEach(l => l(id))
-		);
+		socket.on('block_create', (block: Block) => this.blockCreate.forEach(l => l(block)));
+		socket.on('block_change', (block: Block) => this.blockChange.forEach(l => l(block)));
+		socket.on('block_move', (block: Block) => this.blockMove.forEach(l => l(block)));
+		socket.on('block_delete', (block: Block) => this.blockDelete.forEach(l => l(block)));
+		socket.on('eval_results', (id: string) => this.evalResult.forEach(l => l(id)));
 
-		socket.on('port_create', ({ id, port }: { id: string; port: string }) =>
-			this.portCreate.forEach(l => l(id, port))
+		socket.on('port_create', ({ id, port }: { id: string; port: string }) => this.portCreate.forEach(l => l(id, port)));
+		socket.on('port_rename', ({ id, port, oldName }: { id: string; port: string; oldName: string }) =>
+			this.portRename.forEach(l => l(id, port, oldName))
 		);
-		socket.on(
-			'port_rename',
-			({ id, port, oldName }: { id: string; port: string; oldName: string }) =>
-				this.portRename.forEach(l => l(id, port, oldName))
-		);
-		socket.on('port_delete', ({ id, port }: { id: string; port: string }) =>
-			this.portDelete.forEach(l => l(id, port))
-		);
+		socket.on('port_delete', ({ id, port }: { id: string; port: string }) => this.portDelete.forEach(l => l(id, port)));
 
-		socket.on('link_create', (link: Link) =>
-			this.linkCreate.forEach(l => l(link))
-		);
-		socket.on('link_delete', (link: Link) =>
-			this.linkDelete.forEach(l => l(link))
-		);
+		socket.on('link_create', (link: Link) => this.linkCreate.forEach(l => l(link)));
+		socket.on('link_delete', (link: Link) => this.linkDelete.forEach(l => l(link)));
 
 		socket.on('batch_begin', (batch: number) => {
 			console.log('Batch: ' + batch);
@@ -102,6 +88,14 @@ class API {
 		socket.on('epoch_begin', (batch: number) => {
 			console.log('Epoch: ' + batch);
 		});
+	}
+
+	// Main events
+	onConnet(listener: Listener) {
+		this.connect.push(listener);
+	}
+	onDisconnet(listener: Listener) {
+		this.disconnect.push(listener);
 	}
 
 	// Training events
@@ -151,23 +145,11 @@ class API {
 		this.evalResult.push(listener);
 	}
 
-	getData(
-		callback: (
-			{
-				blocks,
-				links,
-				vars
-			}: { blocks: Block[]; links: Link[]; vars: Variable[] }
-		) => void
-	) {
+	getData(callback: ({ blocks, links, vars }: { blocks: Block[]; links: Link[]; vars: Variable[] }) => void) {
 		socket.emit('data', callback);
 	}
 
-	createBlock(args: {
-		type: 'code' | 'var' | 'visual';
-		code?: string;
-		var?: string;
-	}) {
+	createBlock(args: { type: 'code' | 'var' | 'visual'; code?: string; var?: string }) {
 		socket.emit('block_create', args);
 	}
 	changeBlock(id: string, code: string) {
@@ -209,11 +191,7 @@ class API {
 		socket.emit('link_delete', { id });
 	}
 
-	getResults(
-		id: string,
-		blockId: string,
-		callback: (err: string | null, out: any) => void
-	) {
+	getResults(id: string, blockId: string, callback: (err: string | null, out: any) => void) {
 		socket.emit('eval_get', { id, blockId }, (data: any) => {
 			if (data instanceof ArrayBuffer) {
 				callback(null, readMatrixFromBuffer(data));
