@@ -3,6 +3,7 @@ import json
 import sys
 import io
 import uuid
+import math
 import contextlib
 import socketio
 import pickle
@@ -234,18 +235,12 @@ class CodeBlock(Block):
                 inputs[k] = None
 
         # Run our custom code
-        with stdoutIO() as s:
-            exec(self.code, gs, inputs)
+        exec(self.code, gs, inputs)
 
         # Save the output ports of our execution
         outs = {}
         for k in self.outputs.keys():
             outs[k] = inputs[k]
-
-        # Print statements to console. We could also return them or something...
-        text = s.getvalue()
-        if len(text) > 0:
-            print(self.id + ': ' + text)
 
         # Return an object with our output ports
         return outs
@@ -544,23 +539,36 @@ def evalBlocks(blocks):
         inputs = {}
 
         # Set inputs from links
+        skip = False
         for k, l in b.inputs.items():
             if l is None:
                 inputs[k] = None
             else:
-                # If one of our inputs had an error then we just skip this block
+                # We found an input with an error, so skip this block
                 if outs[l.fromBlock.id][1] is None:
-                    outs[b.id] = [None, None]
-                    continue
+                    skip = True
+                    break
                 # Otherwise set the input to the output of that block
                 inputs[k] = outs[l.fromBlock.id][1][l.fromPort]
 
-        try:
-            # Run the function
-            out = [None, b.eval(gs, inputs)]
-        except:
-            # Save any error
-            out = [tb.format_exc(), None]
+        # If one of our inputs had an error then we just skip this block
+        if skip is True:
+            outs[b.id] = ['Error in previous block', None]
+            continue
+
+        with stdoutIO() as s:
+            try:
+                # Run the function
+                out = [None, b.eval(gs, inputs)]
+            except:
+                print('Error')
+                # Save any error
+                out = [tb.format_exc(), None]
+
+            # Print statements to console. We could also return them or something...
+            text = s.getvalue()
+            if len(text) > 0:
+                print(b.id + ': ' + text)
 
         # Save the output ports of our execution
         outs[b.id] = out
@@ -571,11 +579,17 @@ def evalBlocks(blocks):
     # Cache our execution results using a unique id
     results[execId] = outs
 
+    # Collect our results
+    res = {
+        'id': execId,
+        'blocks': {k: True if d[0] is None else False for k, d in outs.items()}
+    }
+
     # Inform all clients about the exection
-    sio.emit('eval_results', data=execId)
+    sio.emit('eval_results', data=res)
 
     # Return the id to the client so it can get the results
-    return execId
+    return res
 
 
 # Evaluate all (visual) blocks
@@ -583,9 +597,7 @@ def evalBlocks(blocks):
 def evalAllBlocks():
     print('Eval all')
 
-    execId = evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
-
-    return execId
+    return evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
 # Evaluating a block (="running")
@@ -602,20 +614,20 @@ def evalBlock(data):
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    execId = evalBlocks([block])
+    res = evalBlocks([block])
 
     # Get the output for the block we ran the eval socket.io event
-    res = results[execId][block.id]
+    data = results[res['id']][block.id]
 
     # Return our results to the client
     # If the client clicked eval on a visual block then return binary data
-    if res[0] is None:
+    if data[0] is None:
         if isinstance(block, VisualBlock):
-            return serialize_matrix(res[1]['__output__'])
+            return serialize_matrix(data[1]['__output__'])
         else:
-            return [None, res[1]]
+            return [None, data[1]]
     else:
-        return [res[0], None]
+        return [data[0], None]
 
 
 # Getting the results of a certain execution for a certain block
@@ -790,9 +802,12 @@ def deleteLink(data):
 
 class FitCallback(Callback):
     last_time = 0
+    epochs = 0
+    batches = 0
 
     def set_params(self, params):
-        mgr.emit('set_params', params)
+        self.batches = math.ceil(params['samples'] / params['batch_size'])
+        self.epochs = params['epochs']
 
     def on_train_begin(self, logs={}):
         mgr.emit('train_begin', logs)
@@ -803,15 +818,15 @@ class FitCallback(Callback):
     def on_batch_begin(self, batch, logs={}):
         if (time.time() - self.last_time < 1):
             return
-        mgr.emit('batch_begin', batch)
+        mgr.emit('batch_begin', data={'batch': batch, 'batches': self.batches})
         self.last_time = time.time()
 
     def on_epoch_begin(self, epoch, logs={}):
-        mgr.emit('epoch_begin', epoch)
+        mgr.emit('epoch_begin', data={'epoch': epoch, 'epochs': self.epochs})
 
     def on_epoch_end(self, epoch, logs={}):
         evalAllBlocks()
-        mgr.emit('epoch_end', epoch)
+        mgr.emit('epoch_end', data={'epoch': epoch, 'epochs': self.epochs})
 
 
 def expose_model(model):
