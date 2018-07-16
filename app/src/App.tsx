@@ -1,8 +1,30 @@
-import CircularProgress from '@material-ui/core/CircularProgress';
+import {
+	AppBar,
+	Button,
+	CircularProgress,
+	Divider,
+	Drawer,
+	FormControl,
+	IconButton,
+	Input,
+	InputAdornment,
+	InputLabel,
+	LinearProgress,
+	List,
+	ListItem,
+	ListItemText,
+	ListSubheader,
+	Toolbar,
+	Typography
+} from '@material-ui/core';
+import CloseIcon from '@material-ui/icons/Close';
+import MenuIcon from '@material-ui/icons/Menu';
 import * as React from 'react';
-import { DiagramEngine, DiagramModel, DiagramWidget } from 'storm-react-diagrams';
-
-import { Block, isCode, isLayer, isVar, isVisual, Variable } from './types';
+import {
+	DiagramEngine,
+	DiagramModel,
+	DiagramWidget
+} from 'storm-react-diagrams';
 
 import { BaseLinkModel } from './components/Base/BaseLinkModel';
 import { BaseNodeModel } from './components/Base/BaseNodeModel';
@@ -16,6 +38,7 @@ import { VariableNodeModel } from './components/Variable/VariableNodeModel';
 import { VisualNodeFactory } from './components/Visual/VisualNodeFactory';
 import { VisualNodeModel } from './components/Visual/VisualNodeModel';
 import API from './services/api';
+import { Block, isCode, isLayer, isVar, isVisual, Variable } from './types';
 
 const debounce = require('lodash.debounce');
 
@@ -27,11 +50,11 @@ interface OwnState {
 	blocks: BaseNodeModel[];
 	links: BaseLinkModel[];
 	vars: Variable[];
-	epochs: number;
-	epoch: number;
-	batches: number;
-	batch: number;
+	epochProgress: number;
+	batchProgress: number;
+	menu: boolean;
 	playing: boolean;
+	filter: string;
 }
 
 class App extends React.Component<Props, OwnState> {
@@ -48,11 +71,11 @@ class App extends React.Component<Props, OwnState> {
 			blocks: [],
 			links: [],
 			vars: [],
-			epochs: 0,
-			epoch: 0,
-			batches: 0,
-			batch: 0,
-			playing: false
+			epochProgress: 0,
+			batchProgress: 0,
+			menu: false,
+			playing: true,
+			filter: ''
 		};
 	}
 
@@ -70,9 +93,15 @@ class App extends React.Component<Props, OwnState> {
 		API.onConnet(() => {
 			this.setState({ connected: true });
 		});
-
 		API.onDisconnet(() => {
 			this.setState({ connected: false });
+		});
+
+		API.onEpochBegin((epoch: number, epochs: number) => {
+			this.setState({ epochProgress: (epoch / epochs) * 100 });
+		});
+		API.onBatchBegin((batch: number, batches: number) => {
+			this.setState({ batchProgress: (batch / batches) * 100 });
 		});
 
 		API.getData(({ blocks, links, vars }) => {
@@ -83,7 +112,9 @@ class App extends React.Component<Props, OwnState> {
 			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
 
 			links.forEach(link => {
-				const from = blockModels[link.fromId].getPort(link.fromPort) as BasePortModel;
+				const from = blockModels[link.fromId].getPort(
+					link.fromPort
+				) as BasePortModel;
 				const to = blockModels[link.toId].getPort(link.toPort) as BasePortModel;
 
 				if (!from || !to) {
@@ -146,18 +177,25 @@ class App extends React.Component<Props, OwnState> {
 			this.forceUpdate();
 		});
 
-		API.onEvalResults(id => {
+		API.onEvalResults((id, blockRes) => {
 			console.log('New results available: ' + id);
 			// If we're in play mode then we always want to show new results
 			// as soon as they become available, so fetch all new data
 			if (this.state.playing) {
-				this.state.blocks.forEach(block => {
-					if (block instanceof VisualNodeModel) {
+				Object.keys(blockRes).forEach(blockId => {
+					const block = this.state.blocks.find(
+						b => b.id === blockId
+					) as BaseNodeModel;
+					// We get the data for all visual blocks and all blocks with errors
+					if (!blockRes[blockId] || block instanceof VisualNodeModel) {
 						API.getResults(id, block.id, (err, out) => {
 							block.err = err;
 							block.out = out;
 							this.forceUpdate();
 						});
+					} else {
+						block.err = null;
+						block.out = null;
 					}
 				});
 			}
@@ -195,7 +233,9 @@ class App extends React.Component<Props, OwnState> {
 		});
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
 		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
-		node.onRenamePort((port, oldName) => API.renamePort(b.id, port.in, oldName, port.name));
+		node.onRenamePort((port, oldName) =>
+			API.renamePort(b.id, port.in, oldName, port.name)
+		);
 		node.onDeletePort(port => API.deletePort(b.id, port.in, port.name));
 		node.addListener({
 			entityRemoved: () => API.deleteBlock(node.id)
@@ -220,18 +260,31 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
-		API.evalAllBlocks(id => {
-			console.log(id);
+		API.evalAllBlocks((id, blockRes) => {
 			// Grab the results for each block
-			this.state.blocks.forEach(block => {
-				if (block instanceof VisualNodeModel) {
+			Object.keys(blockRes).forEach(blockId => {
+				const block = this.state.blocks.find(
+					b => b.id === blockId
+				) as BaseNodeModel;
+				// We get the data for all visual blocks and all blocks with errors
+				if (!blockRes[block.id] || block instanceof VisualNodeModel) {
 					API.getResults(id, block.id, (err, out) => {
+						console.log(block.id, err);
 						block.err = err;
 						block.out = out;
 						this.forceUpdate();
 					});
+				} else {
+					block.err = null;
+					block.out = null;
 				}
 			});
+		});
+	}
+
+	toggleMenu() {
+		this.setState({
+			menu: !this.state.menu
 		});
 	}
 
@@ -240,32 +293,66 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	render() {
-		const { vars } = this.state;
+		const {
+			vars,
+			epochProgress,
+			batchProgress,
+			menu,
+			playing,
+			filter
+		} = this.state;
 
 		return (
-			<div id="wrapper">
-				<div id="menu">
-					<h3 className="block-title">Blocks</h3>
-					<div id="menu-blocks">
-						<div className="menu-entry" onClick={() => this.addCodeBlock()}>
-							<div>Code</div>
-							<div className="type">Add custom code</div>
-						</div>
-						<div className="menu-entry" onClick={() => this.addVisualBlock()}>
-							<div>Visual</div>
-							<div className="type">Visualize data</div>
-						</div>
-					</div>
-					<h3 className="block-title">Variables</h3>
-					<div id="menu-var">
-						{vars.map(v => (
-							<div key={v.name} className="menu-entry" onClick={() => this.addVariableBlock(v.name)}>
-								<div>{v.name}</div>
-								<div className="type">{v.type}</div>
+			<>
+				<AppBar title="MaDDNA" position="static" color="default">
+					<Toolbar variant="dense">
+						<IconButton
+							color="inherit"
+							aria-label="Menu"
+							style={{ marginLeft: -18 }}
+							onClick={() => this.toggleMenu()}
+						>
+							<MenuIcon />
+						</IconButton>
+						<Typography variant="title" color="inherit" style={{ flex: 1 }}>
+							MaDNNA
+						</Typography>
+						<div style={{ flex: 1 }}>
+							<div style={{ width: 200, marginBottom: 4 }}>
+								<LinearProgress
+									variant="determinate"
+									color="primary"
+									value={epochProgress}
+								/>
 							</div>
-						))}
-					</div>
-				</div>
+							<div style={{ width: 200 }}>
+								<LinearProgress
+									variant="determinate"
+									color="secondary"
+									value={batchProgress}
+								/>
+							</div>
+						</div>
+						<div>
+							<Button
+								variant="contained"
+								color="primary"
+								size="small"
+								onClick={() => this.evalAll()}
+							>
+								Run all
+							</Button>{' '}
+							<Button
+								variant="contained"
+								size="small"
+								style={{ color: playing ? 'forestgreen' : '#ff4d4d' }}
+								onClick={() => this.togglePlay()}
+							>
+								{playing ? 'Playing' : 'Paused'}
+							</Button>
+						</div>
+					</Toolbar>
+				</AppBar>
 				<div id="content">
 					{this.engine &&
 						this.model && (
@@ -279,29 +366,73 @@ class App extends React.Component<Props, OwnState> {
 							/>
 						)}
 				</div>
-				<div id="controls">
-					<button style={{ alignSelf: 'center', height: 21 }} onClick={() => this.evalAll()}>
-						Run all
-					</button>
-					<button
-						className={this.state.playing ? 'play-on' : ''}
-						style={{ alignSelf: 'center', height: 21, borderRadius: '4px' }}
-						onClick={() => this.togglePlay()}
-					>
-						Play
-					</button>
-				</div>
+				<Drawer open={menu} onClose={() => this.toggleMenu()}>
+					<div style={{ width: 280, overflowX: 'hidden' }}>
+						<List dense>
+							<ListSubheader component="div" disableSticky>
+								Blocks
+							</ListSubheader>
+							<ListItem button onClick={() => this.addCodeBlock()}>
+								<ListItemText primary="Code" secondary="Add custom code" />
+							</ListItem>
+							<ListItem button onClick={() => this.addVisualBlock()}>
+								<ListItemText primary="Visual" secondary="Visualize data" />
+							</ListItem>
+						</List>
+						<Divider />
+						<List dense>
+							<ListSubheader component="div" disableSticky>
+								Variables
+							</ListSubheader>
+							<ListItem>
+								<FormControl style={{ marginTop: -12, marginBottom: 12 }}>
+									<InputLabel htmlFor="filter-vars">Search...</InputLabel>
+									<Input
+										id="filter-vars"
+										type="search"
+										value={filter}
+										onChange={e => this.setState({ filter: e.target.value })}
+										endAdornment={
+											filter.length > 0 && (
+												<InputAdornment position="end">
+													<IconButton
+														onClick={() => this.setState({ filter: '' })}
+													>
+														<CloseIcon />
+													</IconButton>
+												</InputAdornment>
+											)
+										}
+									/>
+								</FormControl>
+							</ListItem>
+							{vars.filter(v => v.name.indexOf(filter) >= 0).map(v => (
+								<ListItem
+									key={v.name}
+									button
+									onClick={() => this.addVariableBlock(v.name)}
+								>
+									<ListItemText primary={v.name} secondary={v.type} />
+								</ListItem>
+							))}
+						</List>
+					</div>
+				</Drawer>
 				{(!this.state.connected || this.state.loading) && (
 					<div id="overlay">
 						<div>
 							<div style={{ marginBottom: 10 }}>
-								{this.state.connected ? 'Loading' : this.state.loading ? 'Connecting' : 'Reconnecting'}...
+								{this.state.connected
+									? 'Loading'
+									: this.state.loading
+										? 'Connecting'
+										: 'Reconnecting'}...
 							</div>
 							<CircularProgress />
 						</div>
 					</div>
 				)}
-			</div>
+			</>
 		);
 	}
 }

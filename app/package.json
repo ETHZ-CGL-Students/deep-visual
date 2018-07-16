@@ -5,6 +5,7 @@
   "proxy": "http://localhost:8888/",
   "dependencies": {
     "@material-ui/core": "^1.4.0",
+    "@material-ui/icons": "^1.1.0",
     "@types/tinycolor2": "^1.4.0",
     "codemirror": "5.39.0",
     "lodash.debounce": "^4.0.8",

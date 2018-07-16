@@ -83,37 +83,45 @@ export class BaseNodeWidget<
 					<div className={this.bem('__in')}>
 						{node.getInPorts().map(p => this.generatePort(p))}
 						{canEditPorts && (
-							<div style={{ display: 'flex' }}>
-								<a className="round-button" onClick={() => this.addPort(true)}>＋</a>
+							<div style={{ display: 'flex', marginTop: 2, paddingLeft: 1 }}>
+								<a className="round-button" onClick={() => this.addPort(true)}>
+									＋
+								</a>
 							</div>
 						)}
 					</div>
 					<div className={this.bem('__out')}>
 						{node.getOutPorts().map(p => this.generatePort(p))}
 						{this.props.canEditPorts && (
-							<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-								<a className="round-button" onClick={() => this.addPort(false)}>＋</a>
+							<div
+								style={{
+									display: 'flex',
+									marginTop: 2,
+									paddingRight: 1,
+									justifyContent: 'flex-end'
+								}}
+							>
+								<a className="round-button" onClick={() => this.addPort(false)}>
+									＋
+								</a>
 							</div>
 						)}
 					</div>
 				</div>
 				{canEval && (
-					<>
-						<button
-							disabled={node.running}
-							style={{ width: '100%', cursor: 'pointer' }}
-							onClick={() => this.onEval()}
-						>
-							Run
-						</button>
-						<div style={{ color: 'red' }}>{node.err}</div>
-						{!hideRawData && (
-							<pre style={{ margin: 0 }}>
-								{JSON.stringify(node.out, null, 2)}
-							</pre>
-						)}
-					</>
+					<button
+						disabled={node.running}
+						style={{ width: '100%', cursor: 'pointer' }}
+						onClick={() => this.onEval()}
+					>
+						Run
+					</button>
 				)}
+				<div style={{ padding: 4, color: 'darkred' }}>{node.err}</div>
+				{canEval &&
+					!hideRawData && (
+						<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
+					)}
 				{content && <div style={{ padding: 4 }}>{content}</div>}
 			</div>
 		);
