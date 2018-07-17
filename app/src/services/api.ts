@@ -188,15 +188,12 @@ class API {
 	deleteBlock(id: string) {
 		socket.emit('block_delete', { id });
 	}
-	evalBlock(id: string, callback: EvalCallback) {
-		socket.emit('block_eval', { id }, (data: any) => {
-			callback(data.id, data.blocks);
-		});
+	evalBlock(id: string) {
+		socket.emit('block_eval', { id });
 	}
-	evalAllBlocks(callback: EvalCallback) {
-		socket.emit('block_eval_all', (data: any) =>
-			callback(data.id, data.blocks)
-		);
+
+	evalAllBlocks() {
+		socket.emit('block_eval_all');
 	}
 
 	createPort(id: string, input: boolean, name: string) {
