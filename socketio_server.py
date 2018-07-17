@@ -32,7 +32,7 @@ class MyJSONEncoder(json.JSONEncoder):
         if hasattr(obj, 'to_json'):
             return obj.to_json()
         elif isinstance(obj, np.ndarray):
-            return "<ndarray [" + ', '.join(map(str, obj.shape)) + "]>"
+            return "[" + ', '.join(map(str, obj.shape)) + "]"
         return "<" + type(obj).__name__ + ">"
 
 
@@ -507,7 +507,9 @@ def deleteBlock(data):
     saveData()
 
 
-# Eval an array of blocks, building the execution tree required
+# Eval an array of blocks, building the execution tree required.
+# Emit "eval_results" to inform the client about new evaluations available.
+# On "eval_results", the client is provided with metadata about all outputs.
 def evalBlocks(blocks):
     global results
 
@@ -580,35 +582,38 @@ def evalBlocks(blocks):
         'blocks': json.loads(MyJSONWrapper.dumps({k:d[1] if d[0] is None else False for k, d in outs.items()}))
     }
 
-    # Inform all clients about the exection
+    # Inform all clients that a new execution is ready, passing some metadata about the intermediate outputs
     sio.emit('eval_results', data=res)
 
-    # Return the id to the client so it can get the results
     return res
 
 
 # Evaluate all (visual) blocks
+# Does not return any value. Client will be informed with 'eval_results' once results are ready for retrieval.
 @sio.on('block_eval_all')
 def evalAllBlocks():
     print('Eval all')
-    return evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
+    evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
 # Evaluating a block (="running")
+# Does not return any value. Client will be informed with 'eval_results' once results are ready for retrieval.
 @sio.on('block_eval')
 def evalBlock(data):
     # Find the code block by id
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        return ['Invalid block']
+        print ('Invalid block')
+        return
 
     if isinstance(block, LayerBlock):
-        return ['Cannot evaluate layer directly']
+        print ('Cannot evaluate layer directly')
+        return
 
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    return evalBlocks([block])
+    evalBlocks([block])
 
 
 # Getting the results of a certain execution for a certain block
@@ -630,13 +635,11 @@ def getEval(data):
 
     # Get the results from the cache
     res = allRes[data['blockId']]
-    print (res)
 
     # Return our results to the client
     # If it's a visual block return binary data
     if res[0] is None:
         if isinstance(block, VisualBlock):
-            print ('Request visual blocl')
             return [None, serialize_matrix(res[1]['__output__'])]
         else:
             return [None, res[1]]

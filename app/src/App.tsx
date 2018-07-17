@@ -179,11 +179,7 @@ class App extends React.Component<Props, OwnState> {
 
 		API.onEvalResults((id, blockRes) => {
 			console.log('New results available: ' + id);
-			// If we're in play mode then we always want to show new results
-			// as soon as they become available, so fetch all new data
-			if (this.state.playing) {
-				this.handleEvalData(id, blockRes);
-			}
+			this.handleEvalData(id, blockRes);
 		});
 	}
 
@@ -206,7 +202,8 @@ class App extends React.Component<Props, OwnState> {
 
 		node.setPosition(b.x, b.y);
 		node.onEval(() => {
-			API.evalBlock(b.id, this.handleEvalData.bind(this));
+			node.running = true;
+			API.evalBlock(b.id);
 		});
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
 		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
@@ -237,31 +234,25 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
-		API.evalAllBlocks(this.handleEvalData.bind(this));
+		API.evalAllBlocks();
 	}
 
-	handleEvalData(evalId: string, blockRes: any) {
+	handleEvalData(evalId: string, blockRes: {[blockId: string]: {[outputId: string]: string} | boolean}) {
 		// Grab the results for each block
 		Object.keys(blockRes).forEach(blockId => {
 			const block = this.state.blocks.find(
 				b => b.id === blockId
 			) as BaseNodeModel;
+			block.outputMeta = blockRes[block.id] ? blockRes[block.id] as any : {};
 			// We get the data for all visual blocks and all blocks with errors
-			if (!blockRes[block.id] || block instanceof VisualNodeModel) {
+			if (!blockRes[block.id] || (this.state.playing && block instanceof VisualNodeModel) || block.running) {
 				API.getResults(evalId, block.id, (err, out) => {
-					console.log(block.id, err);
 					block.running = false;
 					block.err = err;
 					block.out = out;
 					block.evalId = evalId;
-					console.log(blockRes[block.id]);
-					console.log(typeof blockRes[block.id] === 'string');
-					block.outputMeta = blockRes[block.id];
 					this.forceUpdate();
 				});
-			} else {
-				block.err = null;
-				block.out = null;
 			}
 		});
 	}
