@@ -151,8 +151,11 @@ class App extends React.Component<Props, OwnState> {
 				this.state.blocks.forEach(block => {
 					if (block instanceof VisualNodeModel) {
 						API.getResults(id, block.id, (err, out) => {
+							console.log('Got results');
+							console.log(out);
 							block.err = err;
 							block.out = out;
+							block.runIdx++;
 							this.forceUpdate();
 						});
 					}
@@ -187,6 +190,7 @@ class App extends React.Component<Props, OwnState> {
 				node.err = err;
 				node.out = out;
 				node.running = false;
+				node.runIdx++;
 				this.forceUpdate();
 			});
 		});
@@ -227,6 +231,7 @@ class App extends React.Component<Props, OwnState> {
 					API.getResults(id, block.id, (err, out) => {
 						block.err = err;
 						block.out = out;
+						block.runIdx++;
 						this.forceUpdate();
 					});
 				}

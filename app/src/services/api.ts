@@ -181,8 +181,13 @@ class API {
 	}
 	evalBlock(id: string, callback: (err: string | null, out: any) => void) {
 		socket.emit('block_eval', { id }, (data: any) => {
-			if (data instanceof ArrayBuffer) {
-				callback(null, readMatrixFromBuffer(data));
+			if (data[0]) {
+				console.error(data[0]);
+				return callback(data[0], []);
+			}
+			console.log(data[1]);
+			if (data[1] instanceof ArrayBuffer) {
+				callback(null, readMatrixFromBuffer(data[1]));
 			} else {
 				callback(data[0], data[1]);
 			}
@@ -215,8 +220,14 @@ class API {
 		callback: (err: string | null, out: any) => void
 	) {
 		socket.emit('eval_get', { id, blockId }, (data: any) => {
-			if (data instanceof ArrayBuffer) {
-				callback(null, readMatrixFromBuffer(data));
+			if (data[0]) {
+				console.error(data[0]);
+				return callback(data[0], null);
+			}
+			console.log(data[1]);
+			if (data[1] instanceof ArrayBuffer) {
+
+				callback(null, readMatrixFromBuffer(data[1]));
 			} else {
 				callback(data[0], data[1]);
 			}

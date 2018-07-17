@@ -314,34 +314,14 @@ class VariableBlock(Block):
         return {'value': self.value}
 
 
-class VisualBlock(Block):
+class VisualBlock(CodeBlock):
     """ An block used to visualize data (usually matrices) """
-
-    def __init__(self, id=None, x=10, y=10):
-        super(VisualBlock, self).__init__(id=id, x=x, y=y)
-        self.inputs = OrderedDict([
-            ('input', None)
-        ])
-        # We add a fake output, which isn't shown in the frontend but allows
-        # us to cache the result (=input) and send it as binary socket data
-        # More advanced visualization blocks could also transform the data
-        # on the server side this way
-        self.outputs = OrderedDict([
-            ('__output__', [])
-        ])
-
     def to_json(self):
         """ This is called by our custom json serializer """
 
         json = super(VisualBlock, self).to_json()
         json['class'] = 'VisualBlock'
         return json
-
-    def eval(self, gs, inputs):
-        return {
-            '__output__': inputs['input']
-        }
-
 
 
 # Exposed variables
@@ -375,7 +355,7 @@ def parseDataObject(d):
         return VariableBlock(
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
     elif c == 'VisualBlock':
-        return VisualBlock(id=d['id'], x=d['x'], y=d['y'])
+        return VisualBlock(data=d)
 
     return d
 
@@ -606,12 +586,14 @@ def evalBlock(data):
 
     # Get the output for the block we ran the eval socket.io event
     res = results[execId][block.id]
+    # res = [error, results]
 
     # Return our results to the client
     # If the client clicked eval on a visual block then return binary data
     if res[0] is None:
         if isinstance(block, VisualBlock):
-            return serialize_matrix(res[1]['__output__'])
+            # return [None, list(map(lambda k: serialize_matrix(res[1][k]), res[1].keys()))]
+            return [None, serialize_matrix(res[1]["y0"])]
         else:
             return [None, res[1]]
     else:
@@ -637,12 +619,14 @@ def getEval(data):
 
     # Get the results from the cache
     res = allRes[data['blockId']]
+    print (res)
 
     # Return our results to the client
     # If it's a visual block return binary data
     if res[0] is None:
         if isinstance(block, VisualBlock):
-            return serialize_matrix(res[1]['__output__'])
+            print ('Request visual blocl')
+            return [None, list(map(lambda k: serialize_matrix(res[1][k]), res[1].keys()))]
         else:
             return [None, res[1]]
     else:
