@@ -198,7 +198,7 @@ class Block(metaclass=ABCMeta):
         }
 
     @abstractmethod
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         """ Evaluate this block using the given input, returning the output"""
         return None
 
@@ -227,20 +227,20 @@ class CodeBlock(Block):
         json['code'] = self.code
         return json
 
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         # Empty all outputs (if not already set - this allows
         # passing inputs by using the same port name)
         for k in self.outputs.keys():
-            if k not in inputs:
-                inputs[k] = None
+            if k not in context:
+                context[k] = None
 
         # Run our custom code
-        exec(self.code, gs, inputs)
+        exec(self.code, gs, context)
 
         # Save the output ports of our execution
         outs = {}
         for k in self.outputs.keys():
-            outs[k] = inputs[k]
+            outs[k] = context[k]
 
         # Return an object with our output ports
         return outs
@@ -269,8 +269,8 @@ class LayerBlock(Block):
         json['type'] = type(self.layer).__name__
         return json
 
-    def eval(self, gs, inputs):
-        x = inputs['input']
+    def eval(self, gs, context):
+        x = context['input']
         eval_result = OrderedDict(
             [("w"+str(i), v) for (i, v) in enumerate(self.layer.get_weights())])
         if self.layer is None or x is None:
@@ -305,7 +305,7 @@ class VariableBlock(Block):
         json['name'] = self.name
         return json
 
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         return {'value': self.value}
 
 
@@ -531,20 +531,20 @@ def evalBlocks(blocks):
     # Traverse the blocks
     for b in bs:
         # Collect inputs for this block
-        inputs = {}
+        context = {}
 
         # Set inputs from links
         skip = False
         for k, l in b.inputs.items():
             if l is None:
-                inputs[k] = None
+                context[k] = None
             else:
                 # We found an input with an error, so skip this block
                 if outs[l.fromBlock.id][1] is None:
                     skip = True
                     break
                 # Otherwise set the input to the output of that block
-                inputs[k] = outs[l.fromBlock.id][1][l.fromPort]
+                context[k] = outs[l.fromBlock.id][1][l.fromPort]
 
         # If one of our inputs had an error then we just skip this block
         if skip is True:
@@ -554,7 +554,7 @@ def evalBlocks(blocks):
         with stdoutIO() as s:
             try:
                 # Run the function
-                out = [None, b.eval(gs, inputs)]
+                out = [None, b.eval(gs, context)]
             except:
                 print('Error')
                 # Save any error
