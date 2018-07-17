@@ -577,7 +577,7 @@ def evalBlocks(blocks):
     # Collect our results
     res = {
         'id': execId,
-        'blocks': {k: True if d[0] is None else False for k, d in outs.items()}
+        'blocks': json.loads(MyJSONWrapper.dumps({k:d[1] if d[0] is None else False for k, d in outs.items()}))
     }
 
     # Inform all clients about the exection
@@ -609,20 +609,7 @@ def evalBlock(data):
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    res = evalBlocks([block])
-
-    # Get the output for the block we ran the eval socket.io event
-    data = results[res['id']][block.id]
-
-    # Return our results to the client
-    # If the client clicked eval on a visual block then return binary data
-    if data[0] is None:
-        if isinstance(block, VisualBlock):
-            return serialize_matrix(data[1]['__output__'])
-        else:
-            return [None, data[1]]
-    else:
-        return [data[0], None]
+    return evalBlocks([block])
 
 
 # Getting the results of a certain execution for a certain block

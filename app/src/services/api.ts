@@ -26,6 +26,9 @@ export type EvalListener = (
 	blocks: { [x: string]: boolean }
 ) => void;
 
+export type EvalCallback = (evalId: string, blocks: {[blockId: string]: Object|false}) => void;
+export type DataCallback = (blocks: Block[], links: Link[], vars: Variable[]) => void;
+
 class API {
 	connect: Listener[] = [];
 	disconnect: Listener[] = [];
@@ -163,16 +166,10 @@ class API {
 		this.evalResult.push(listener);
 	}
 
-	getData(
-		callback: (
-			{
-				blocks,
-				links,
-				vars
-			}: { blocks: Block[]; links: Link[]; vars: Variable[] }
-		) => void
-	) {
-		socket.emit('data', callback);
+	getData(callback: DataCallback) {
+		socket.emit('data', (data: any) => {
+			return callback(data.blocks, data.links, data.vars);
+		});
 	}
 
 	createBlock(args: {
@@ -191,23 +188,12 @@ class API {
 	deleteBlock(id: string) {
 		socket.emit('block_delete', { id });
 	}
-	evalBlock(id: string, callback: (err: string | null, out: any) => void) {
+	evalBlock(id: string, callback: EvalCallback) {
 		socket.emit('block_eval', { id }, (data: any) => {
-			if (data[0]) {
-				console.error(data[0]);
-				return callback(data[0], []);
-			}
-			console.log(data[1]);
-			if (data[1] instanceof ArrayBuffer) {
-				callback(null, readMatrixFromBuffer(data[1]));
-			} else {
-				callback(data[0], data[1]);
-			}
+			callback(data.id, data.blocks);
 		});
 	}
-	evalAllBlocks(
-		callback: (id: string, blocks: { [x: string]: boolean }) => void
-	) {
+	evalAllBlocks(callback: EvalCallback) {
 		socket.emit('block_eval_all', (data: any) =>
 			callback(data.id, data.blocks)
 		);
