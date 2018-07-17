@@ -591,7 +591,6 @@ def evalBlocks(blocks):
 @sio.on('block_eval_all')
 def evalAllBlocks():
     print('Eval all')
-
     return evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
@@ -638,7 +637,7 @@ def getEval(data):
     if res[0] is None:
         if isinstance(block, VisualBlock):
             print ('Request visual blocl')
-            return [None, list(map(lambda k: serialize_matrix(res[1][k]), res[1].keys()))]
+            return [None, serialize_matrix(res[1]['__output__'])]
         else:
             return [None, res[1]]
     else:
