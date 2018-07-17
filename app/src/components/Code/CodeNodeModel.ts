@@ -17,13 +17,16 @@ export class CodeNodeModel extends BaseNodeModel {
 			this.addPort(new BasePortModel(true, k));
 		});
 		block.outputs.forEach(k => {
-			this.addPort(new BasePortModel(false, k));
+			if (!k.startsWith('__')) {
+				this.addPort(new BasePortModel(false, k));
+			}
 		});
 	}
 
 	onChange(listener: () => void) {
 		this.changeListener = listener;
 	}
+
 	changeCode(code: string) {
 		this.code = code;
 		if (this.changeListener) {

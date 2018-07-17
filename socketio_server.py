@@ -311,6 +311,21 @@ class VariableBlock(Block):
 
 class VisualBlock(CodeBlock):
     """ An block used to visualize data (usually matrices) """
+    def __init__(self, data=None):
+        super(VisualBlock, self).__init__(data=data)
+        self.inputs = OrderedDict([
+            ('input', None)
+        ])
+        # We add a fake output, which isn't shown in the frontend but allows
+        # us to cache the result (=input) and send it as binary socket data
+        # More advanced visualization blocks could also transform the data
+        # on the server side this way
+        self.outputs = OrderedDict([
+            ('__output__', [])
+        ])
+        if self.code == '' or not self.code:
+            self.code = '__output__ = input'
+
     def to_json(self):
         """ This is called by our custom json serializer """
 
