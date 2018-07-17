@@ -10,6 +10,7 @@
     "codemirror": "5.39.0",
     "lodash.debounce": "^4.0.8",
     "normalizr": "3.2.4",
+    "numjs": "^0.16.0",
     "plotly.js": "^1.39.2",
     "react": "16.4.1",
     "react-codemirror": "1.0.0",
