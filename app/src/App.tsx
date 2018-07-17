@@ -104,9 +104,9 @@ class App extends React.Component<Props, OwnState> {
 			this.setState({ batchProgress: (batch / batches) * 100 });
 		});
 
-		API.getData(({ blocks, links, vars }) => {
+		API.getData((blocks, links, vars) => {
 			vars.sort((a, b) => a.name.localeCompare(b.name));
-			this.setState({ vars, loading: false });
+			this.setState({vars, loading: false});
 
 			const blockModels: { [x: string]: BaseNodeModel } = {};
 			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
