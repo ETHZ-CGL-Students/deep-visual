@@ -16,88 +16,40 @@ button {
     outline: 0;
 }
 
-#wrapper {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: stretch;
-    align-content: stretch;
+#overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100vw;
     height: 100vh;
-    margin: 0;
-    padding: 0;
-    background: var(--main-bg-color);
-    background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent);
-    background-size: 50px 50px;
+    text-align: center;
+    background-color: rgba(255, 255, 255, 0.4);
+    z-index: 1000;
 }
 
-#menu {
-    position: absolute;
-    z-index: 100;
-    background: var(--main-bg-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    align-content: stretch;
-    width: 100vw;
-    height: 112px;
-    flex-shrink: 0;
-    margin: 0;
-    padding: 10px 25px 10px 25px;
+#overlay>div {
+    left: 20%;
+    width: 60%;
+    padding: 10px;
     box-sizing: border-box;
-}
-
-.block-title {
-    transform: rotate(-90deg);
-    color: var(--main-text-color);
-}
-
-#menu-blocks {
-    overflow-y: auto;
-}
-
-#menu-var {
-    overflow-y: scroll;
-    flex: 1;
-}
-
-.menu-entry {
-    display: inline-block;
-    margin: 2px;
-    padding: 3px;
-    border-radius: 3px;
-    background: var(--secondary-text-color);
-}
-
-.menu-entry:hover {
-    cursor: pointer;
-    background-color: var(--secondary-text-color);
-}
-
-.menu-entry>.type {
-    color: grey;
-    font-size: 80%;
+    border: 1px solid black;
+    border-radius: 5px;
+    color: #000;
+    background-color: #fff;
+    position: relative;
+    top: 40%;
 }
 
 #content {
     position: relative;
-    flex: 1;
-    height: 100%;
-    right: 0;
+    height: calc(100vh - 48px);
+    width: 100%;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-}
-
-#controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 150px;
-    height: 40px;
-    display: flex;
-    justify-content: space-around;
-    background: var(--main-overlay-color);
+    background: var(--main-bg-color);
+    background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.05) 75%, rgba(255, 255, 255, 0.05) 76%, transparent 77%, transparent);
+    background-size: 50px 50px;
 }
 
 .diagram {
@@ -106,25 +58,23 @@ button {
 }
 
 .round-button {
-    display:block;
-    width:12px;
-    height:12px;
-    line-height:12px;
+    display: block;
+    width: 15px;
+    height: 15px;
+    line-height: 15px;
     border-radius: 50%;
-    color:#f5f5f5;
-    text-align:center;
-    text-decoration:none;
+    color: #f5f5f5;
+    text-align: center;
+    text-decoration: none;
+    align-self: center;
     background: rgba(0, 0, 0, 0.35);
-    font-size:9px;
+    font-size: 9px;
     cursor: pointer;
     border: none;
 }
+
 .round-button:hover {
     background: #262626;
-}
-
-.play-on {
-    background: forestgreen;
 }
 
 /* react-diagram */
@@ -143,8 +93,6 @@ button {
     border: none;
 }
 
-
-
 .srd-default-node__ports {
     padding-left: 4px;
     padding-right: 4px;
@@ -162,6 +110,7 @@ button {
 }
 
 /* CodeMirror */
+
 .CodeMirror {
     height: auto;
     width: 70vw;
@@ -169,6 +118,7 @@ button {
     min-height: 100px;
     max-height: 300px;
 }
+
 .CodeMirror-scroll {
     height: auto;
     min-height: 100px;

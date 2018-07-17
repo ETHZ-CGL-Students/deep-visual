@@ -62,7 +62,8 @@ expose_variables(locals())
 start()
 
 # Fit our model
-model.fit(x_train, y_train, verbose=True, epochs=epochs, callbacks=[FitCallback()])
+model.fit(x_train, y_train, verbose=False,
+          epochs=epochs, callbacks=[FitCallback()])
 
 # time.sleep(30)
 # model.fit(

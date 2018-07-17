@@ -1,14 +1,13 @@
-import * as openSocket from 'socket.io-client';
+import * as io from 'socket.io-client';
 
 import { readMatrixFromBuffer } from '../components/Util';
 import { Block, Link, Variable } from '../types';
 
-const socket = openSocket('http://localhost:8080');
+const socket = io('http://localhost:8080');
 
 export type Listener = () => void;
-export type SetParamsListener = (epochs: number, batches: number) => void;
-export type EpochBeginListener = (epoch: number) => void;
-export type BatchBeginListener = (batch: number) => void;
+export type EpochBeginListener = (epoch: number, epochs: number) => void;
+export type BatchBeginListener = (batch: number, batches: number) => void;
 
 export type BlockListener = (blocks: Block) => void;
 export type BlocksListener = (blocks: Block[]) => void;
@@ -22,10 +21,15 @@ export type PortRenameListener = (
 
 export type LinkListener = (link: Link) => void;
 
-export type EvalListener = (id: string) => void;
+export type EvalListener = (
+	id: string,
+	blocks: { [x: string]: boolean }
+) => void;
 
 class API {
-	setParams: SetParamsListener[] = [];
+	connect: Listener[] = [];
+	disconnect: Listener[] = [];
+
 	trainBegin: Listener[] = [];
 	trainEnd: Listener[] = [];
 	epochBegin: EpochBeginListener[] = [];
@@ -45,19 +49,30 @@ class API {
 
 	evalResult: EvalListener[] = [];
 
+	connected = false;
+
 	constructor() {
 		// Subscribe to events
-		socket.on('set_params', (data: any) => {
-			const batches = Math.ceil(data.samples / data.batch_size);
-			this.setParams.forEach(l => l(data.epochs, batches));
+		socket.on('connect', () => {
+			this.connected = true;
+			this.connect.forEach(l => l());
 		});
+		socket.on('disconnect', () => {
+			this.connected = false;
+			this.disconnect.forEach(l => l());
+		});
+
 		socket.on('train_begin', () => this.trainBegin.forEach(l => l()));
 		socket.on('train_end', () => this.trainEnd.forEach(l => l()));
-		socket.on('epoch_begin', (epoch: number) =>
-			this.epochBegin.forEach(l => l(epoch))
+		socket.on(
+			'epoch_begin',
+			({ epoch, epochs }: { epoch: number; epochs: number }) =>
+				this.epochBegin.forEach(l => l(epoch, epochs))
 		);
-		socket.on('batch_begin', (batch: number) =>
-			this.epochBegin.forEach(l => l(batch))
+		socket.on(
+			'batch_begin',
+			({ batch, batches }: { batch: number; batches: number }) =>
+				this.batchBegin.forEach(l => l(batch, batches))
 		);
 
 		socket.on('block_create', (block: Block) =>
@@ -72,8 +87,8 @@ class API {
 		socket.on('block_delete', (block: Block) =>
 			this.blockDelete.forEach(l => l(block))
 		);
-		socket.on('eval_results', (id: string) =>
-			this.evalResult.forEach(l => l(id))
+		socket.on('eval_results', (data: any) =>
+			this.evalResult.forEach(l => l(data.id, data.blocks))
 		);
 
 		socket.on('port_create', ({ id, port }: { id: string; port: string }) =>
@@ -94,20 +109,17 @@ class API {
 		socket.on('link_delete', (link: Link) =>
 			this.linkDelete.forEach(l => l(link))
 		);
+	}
 
-		socket.on('batch_begin', (batch: number) => {
-			console.log('Batch: ' + batch);
-		});
-
-		socket.on('epoch_begin', (batch: number) => {
-			console.log('Epoch: ' + batch);
-		});
+	// Main events
+	onConnet(listener: Listener) {
+		this.connect.push(listener);
+	}
+	onDisconnet(listener: Listener) {
+		this.disconnect.push(listener);
 	}
 
 	// Training events
-	onSetParams(listener: SetParamsListener) {
-		this.setParams.push(listener);
-	}
 	onTrainBegin(listener: Listener) {
 		this.trainBegin.push(listener);
 	}
@@ -193,8 +205,12 @@ class API {
 			}
 		});
 	}
-	evalAllBlocks(callback: (id: string) => void) {
-		socket.emit('block_eval_all', callback);
+	evalAllBlocks(
+		callback: (id: string, blocks: { [x: string]: boolean }) => void
+	) {
+		socket.emit('block_eval_all', (data: any) =>
+			callback(data.id, data.blocks)
+		);
 	}
 
 	createPort(id: string, input: boolean, name: string) {
