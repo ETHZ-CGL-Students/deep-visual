@@ -82,8 +82,6 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	componentDidMount() {
-		this.model = new DiagramModel();
-
 		this.engine = new DiagramEngine();
 		this.engine.registerNodeFactory(new CodeNodeFactory());
 		this.engine.registerNodeFactory(new LayerNodeFactory());
@@ -92,8 +90,11 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
-		API.onConnet(() => this.setState({ connected: true }));
-		API.onDisconnet(() => this.setState({ connected: false }));
+		API.onConnet(() => {
+			this.setState({ connected: true });
+			this.getData();
+		});
+		API.onDisconnet(() => this.setState({ connected: false, loading: true }));
 
 		API.onEpochBegin((epoch: number, epochs: number) =>
 			this.setState({ epochProgress: (epoch / epochs) * 100 })
@@ -101,6 +102,45 @@ class App extends React.Component<Props, OwnState> {
 		API.onBatchBegin((batch: number, batches: number) =>
 			this.setState({ batchProgress: (batch / batches) * 100 })
 		);
+
+		API.onBlockCreate(b => this.addNodeForBlock(b));
+		API.onBlockChange(b => {
+			// TODO: Update block
+			console.log(b);
+		});
+		API.onBlockMove(b => {
+			const node = this.model.getNode(b.id) as BaseNodeModel;
+			if (!node) {
+				return;
+			}
+			node.pauseEvents();
+			node.x = b.x;
+			node.y = b.y;
+			Object.keys(node.getPorts()).forEach(p => {
+				const port = node.ports[p];
+				const portCoords = this.engine.getPortCoords(port);
+				port.updateCoords(portCoords);
+			});
+			node.resumeEvents();
+			this.forceUpdate();
+		});
+
+		API.onNewResult((id, blockRes) => this.handleEvalData(id, blockRes));
+	}
+
+	// This clears all our data and fetches it from the server
+	// Used when initially connecting, and when reconnecting
+	getData() {
+		this.setState({
+			blocks: {},
+			results: {},
+			vars: []
+		});
+
+		this.model = new DiagramModel();
+		this.model.nodes = {};
+		this.model.links = {};
+		this.engine.setDiagramModel(this.model);
 
 		API.getData((blocks, links, vars, results) => {
 			const res = {};
@@ -157,30 +197,6 @@ class App extends React.Component<Props, OwnState> {
 			this.engine.zoomToFit();
 			this.forceUpdate();
 		});
-
-		API.onBlockCreate(b => this.addNodeForBlock(b));
-		API.onBlockChange(b => {
-			// TODO: Update block
-			console.log(b);
-		});
-		API.onBlockMove(b => {
-			const node = this.model.getNode(b.id) as BaseNodeModel;
-			if (!node) {
-				return;
-			}
-			node.pauseEvents();
-			node.x = b.x;
-			node.y = b.y;
-			Object.keys(node.getPorts()).forEach(p => {
-				const port = node.ports[p];
-				const portCoords = this.engine.getPortCoords(port);
-				port.updateCoords(portCoords);
-			});
-			node.resumeEvents();
-			this.forceUpdate();
-		});
-
-		API.onNewResult((id, blockRes) => this.handleEvalData(id, blockRes));
 	}
 
 	addNodeForBlock(b: Block) {
@@ -219,12 +235,12 @@ class App extends React.Component<Props, OwnState> {
 		});
 
 		this.model.addNode(node);
-		this.setState({
+		this.setState(state => ({
 			blocks: {
-				...this.state.blocks,
+				...state.blocks,
 				[b.id]: node
 			}
-		});
+		}));
 		return node;
 	}
 
