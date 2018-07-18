@@ -26,8 +26,12 @@ export type ResultListener = (
 	blocks: { [x: string]: boolean }
 ) => void;
 
-export type EvalCallback = (evalId: string, blocks: {[blockId: string]: Object|false}) => void;
-export type DataCallback = (blocks: Block[], links: Link[], vars: Variable[]) => void;
+export type DataCallback = (
+	blocks: Block[],
+	links: Link[],
+	vars: Variable[],
+	results: string[]
+) => void;
 
 class API {
 	connect: Listener[] = [];
@@ -168,7 +172,7 @@ class API {
 
 	getData(callback: DataCallback) {
 		socket.emit('data', (data: any) => {
-			return callback(data.blocks, data.links, data.vars);
+			return callback(data.blocks, data.links, data.vars, data.results);
 		});
 	}
 
@@ -218,13 +222,12 @@ class API {
 		blockId: string,
 		callback: (err: string | null, out: any) => void
 	) {
-		socket.emit('eval_get', { id, blockId }, (data: any) => {
+		socket.emit('result_get', { id, blockId }, (data: any) => {
 			if (data[0]) {
 				console.error(data[0]);
 				return callback(data[0], null);
 			}
 			if (data[1] instanceof ArrayBuffer) {
-
 				callback(null, readMatrixFromBuffer(data[1]));
 			} else {
 				callback(data[0], data[1]);

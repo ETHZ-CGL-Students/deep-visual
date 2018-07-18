@@ -11,7 +11,7 @@ export class BaseNodeModel extends NodeModel {
 	public running: boolean;
 	public err: string | null;
 	public out: any;
-	public _outputMeta: {[outputName: string]: string};
+	public _outputMeta: { [outputName: string]: string };
 	public evalId: string;
 	protected triggerEvents: boolean = true;
 	protected moveListener?: () => void;
@@ -31,12 +31,12 @@ export class BaseNodeModel extends NodeModel {
 		this.name = type + ' - ' + id;
 	}
 
-	set outputMeta(meta: {[outputName: string]: string}) {
+	public set outputMeta(meta: { [outputName: string]: string }) {
 		this._outputMeta = meta;
 		this.updateLinkLabels();
 	}
 
-	get outputMeta() {
+	public get outputMeta() {
 		return this._outputMeta;
 	}
 
@@ -53,7 +53,7 @@ export class BaseNodeModel extends NodeModel {
 	}
 
 	updateLinkLabels() {
-		Object.keys(this.outputMeta).forEach((outputKey) => {
+		Object.keys(this.outputMeta).forEach(outputKey => {
 			let port = this.ports[outputKey];
 			if (port) {
 				Object.values(port.links).forEach((link: DefaultLinkModel) => {

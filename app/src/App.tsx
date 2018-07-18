@@ -102,9 +102,7 @@ class App extends React.Component<Props, OwnState> {
 			this.setState({ batchProgress: (batch / batches) * 100 })
 		);
 
-		API.getData(({ blocks, links, vars, results }) => {
-			console.log(results);
-
+		API.getData((blocks, links, vars, results) => {
 			const res = {};
 			results.forEach(r => (res[r] = {}));
 
@@ -182,10 +180,7 @@ class App extends React.Component<Props, OwnState> {
 			this.forceUpdate();
 		});
 
-		API.onEvalResults((id, blockRes) => {
-			console.log('New results available: ' + id);
-			this.handleEvalData(id, blockRes);
-		});
+		API.onNewResult((id, blockRes) => this.handleEvalData(id, blockRes));
 	}
 
 	addNodeForBlock(b: Block) {
@@ -247,33 +242,39 @@ class App extends React.Component<Props, OwnState> {
 		API.evalAllBlocks();
 	}
 
-	handleEvalData(evalId: string, blockRes: {[blockId: string]: {[outputId: string]: string} | boolean}) {
+	handleEvalData(
+		evalId: string,
+		blockRes: { [blockId: string]: { [outputId: string]: string } | boolean }
+	) {
 		// Grab the results for each block
 		Object.keys(blockRes).forEach(blockId => {
-			const block = this.state.blocks.find(
-				b => b.id === blockId
-			) as BaseNodeModel;
-			block.outputMeta = blockRes[block.id] ? blockRes[block.id] as any : {};
+			const block = this.state.blocks[blockId];
+			block.outputMeta = blockRes[block.id] ? (blockRes[block.id] as any) : {};
+
 			// We get the data for all visual blocks and all blocks with errors
-			if (!blockRes[block.id] || (this.state.playing && block instanceof VisualNodeModel) || block.running) {
+			if (
+				!blockRes[block.id] ||
+				(this.state.playing && block instanceof VisualNodeModel) ||
+				block.running
+			) {
 				console.log('Retrieving results for', block.id);
-				API.getResults(evalId, block.id, (err, out) => {
-					block.running = false;
-					block.err = err;
-					block.out = out;
-					block.evalId = evalId;
-					this.forceUpdate();
-				});
+				this.getResult(evalId, block);
+			} else {
+				block.err = null;
+				block.out = null;
 			}
 		});
 	}
 
-	// Show the specified results for the specified block
+	// Get specified results for the specified block
 	// This adds the results either from the cache or from the server to the block
-	showResult(id: string, block: BaseNodeModel) {
+	getResult(evalId: string, block: BaseNodeModel) {
+		block.running = false;
+		block.evalId = evalId;
+
 		// Check our cache first
-		if (this.state.results[id] && this.state.results[id][block.id]) {
-			const res = this.state.results[id][block.id];
+		if (this.state.results[evalId] && this.state.results[evalId][block.id]) {
+			const res = this.state.results[evalId][block.id];
 			block.err = res[0];
 			block.out = res[1];
 			this.forceUpdate();
@@ -281,15 +282,15 @@ class App extends React.Component<Props, OwnState> {
 		}
 
 		// Fetch from server
-		API.getResult(id, block.id, (err, out) => {
+		API.getResult(evalId, block.id, (err, out) => {
 			block.err = err;
 			block.out = out;
 			// Save the results in our cache
 			this.setState({
 				results: {
 					...this.state.results,
-					[id]: {
-						...this.state.results[id],
+					[evalId]: {
+						...this.state.results[evalId],
 						[block.id]: [err, out]
 					}
 				}

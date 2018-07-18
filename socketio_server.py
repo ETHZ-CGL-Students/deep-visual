@@ -326,6 +326,7 @@ class VariableBlock(Block):
 
 class VisualBlock(CodeBlock):
     """ An block used to visualize data (usually matrices) """
+
     def __init__(self, data=None):
         super(VisualBlock, self).__init__(data=data)
         self.inputs = OrderedDict([
@@ -359,7 +360,7 @@ links = []
 results = {}
 
 
-def saveData():
+def save_data():
     with open('save/data.json', 'w') as outfile:
         bs = [b for b in blocks if not isinstance(b, LayerBlock)]
         ls = [l for l in links if l.implicit == False]
@@ -367,7 +368,7 @@ def saveData():
         json.dump(obj, outfile, cls=MyJSONEncoder)
 
 
-def parseDataObject(d):
+def parse_data_object(d):
     if 'class' not in d:
         return d
 
@@ -385,13 +386,13 @@ def parseDataObject(d):
     return d
 
 
-def loadData():
+def load_data():
     try:
         with open('save/data.json', 'r') as infile:
             global links
             global blocks
             # Parse all the code blocks from file
-            data = json.load(infile, object_hook=parseDataObject)
+            data = json.load(infile, object_hook=parse_data_object)
 
             # Add the code blocks to the main blocks array
             blocks.extend(data['blocks'])
@@ -462,7 +463,7 @@ def add_block(data):
         blocks.append(newBlock)
         sio.emit('block_create', data=newBlock)
 
-        saveData()
+        save_data()
 
 
 # Edit code of a block
@@ -476,7 +477,7 @@ def edit_block(data):
         block.code = data['code']
 
     sio.emit('block_change', data=block)
-    saveData()
+    save_data()
 
 
 # Move block around
@@ -489,7 +490,7 @@ def move_block(data):
     block.x = data['x']
     block.y = data['y']
     sio.emit('block_move', data=block)
-    saveData()
+    save_data()
 
 
 # Deleting blocks
@@ -520,13 +521,13 @@ def delete_block(data):
     # Remove from blocks array
     blocks.remove(block)
     sio.emit('block_delete', data=block)
-    saveData()
+    save_data()
 
 
 # Eval an array of blocks, building the execution tree required.
 # Emit "eval_results" to inform the client about new evaluations available.
 # On "eval_results", the client is provided with metadata about all outputs.
-def evalBlocks(blocks):
+def eval_blocks(blocks):
     global results
 
     # Build our execution tree
@@ -603,13 +604,18 @@ def evalBlocks(blocks):
     results[execId] = outs
 
     # Collect our results
+    # We add some metadata, specifically, json dumping the results leads to
+    # the data being serialized according to our custom serializers at the top of this file
     res = {
         'id': execId,
-        'blocks': json.loads(MyJSONWrapper.dumps({k:d[1] if d[0] is None else False for k, d in outs.items()}))
+        'blocks': json.loads(MyJSONWrapper.dumps({
+            k: d[1] if d[0] is None else False for k, d in outs.items()
+        }))
     }
 
-    # Inform all clients that a new execution is ready, passing some metadata about the intermediate outputs
-    sio.emit('eval_results', data=res)
+    # Inform all clients that a new execution is ready,
+    # passing some metadata about the intermediate outputs
+    sio.emit('result_new', data=res)
 
     return res
 
@@ -619,11 +625,12 @@ def evalBlocks(blocks):
 @sio.on('block_eval_all')
 def eval_all_blocks():
     print('Eval all')
-    evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
+    eval_blocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
 # Evaluating a block (="running")
-# Does not return any value. Client will be informed with 'eval_results' once results are ready for retrieval.
+# Does not return any value. Client will be informed with 'eval_results' 
+# once results are ready for retrieval.
 @sio.on('block_eval')
 def eval_block(data):
     # Find the code block by id
@@ -639,7 +646,7 @@ def eval_block(data):
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    evalBlocks([block])
+    eval_blocks([block])
 
 
 # Getting the results of a certain execution for a certain block
@@ -694,7 +701,7 @@ def create_port(data):
         block.outputs[portName] = []
 
     sio.emit('port_create', data={'id': block.id, 'port': portName})
-    saveData()
+    save_data()
 
 
 # Renaming a port
@@ -723,7 +730,7 @@ def rename_port(data):
             'port': newName,
             'oldName': oldName
         })
-    saveData()
+    save_data()
 
 
 # Deleting a port
@@ -742,7 +749,7 @@ def delete_port(data):
         block.outputs.pop(portName, None)
 
     sio.emit('port_delete', data={'id': block.id, 'port': portName})
-    saveData()
+    save_data()
 
 
 # Connecting blocks together
@@ -784,7 +791,7 @@ def create_link(data):
     toBlock.inputs[toPort] = link
 
     sio.emit('link_create', data=link)
-    saveData()
+    save_data()
 
 
 # Disconnecting blocks
@@ -809,7 +816,7 @@ def delete_link(data):
     # Delete link
     links.remove(link)
     sio.emit('link_delete', data=link)
-    saveData()
+    save_data()
 
 
 class FitCallback(Callback):
@@ -837,7 +844,7 @@ class FitCallback(Callback):
         mgr.emit('epoch_begin', data={'epoch': epoch, 'epochs': self.epochs})
 
     def on_epoch_end(self, epoch, logs={}):
-        evalAllBlocks()
+        eval_all_blocks()
         mgr.emit('epoch_end', data={'epoch': epoch, 'epochs': self.epochs})
 
 
@@ -898,7 +905,7 @@ def start():
     # We wait with loading blocks until here so that the model layers
     # are exposed, because they might be referenced in one of the
     # code blocks 'next' or 'prev' arrays
-    loadData()
+    load_data()
 
     def run():
         sio.run(app, port=8080)
