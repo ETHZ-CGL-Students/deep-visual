@@ -7,9 +7,5 @@ export class VisualNodeModel extends CodeNodeModel {
 	constructor(block: VisualBlock) {
 		super(block, 'visual');
 		this.color = '#247BA0';
-		if (!this.code || !this.code.length) {
-			this.changeCode('y0 = x0');
-		}
-		// this.addPort(new BasePortModel(true, 'input'));
 	}
 }

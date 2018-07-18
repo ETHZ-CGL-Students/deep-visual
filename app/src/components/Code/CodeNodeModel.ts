@@ -17,9 +17,7 @@ export class CodeNodeModel extends BaseNodeModel {
 			this.addPort(new BasePortModel(true, k));
 		});
 		block.outputs.forEach(k => {
-			if (!k.startsWith('__')) {
-				this.addPort(new BasePortModel(false, k));
-			}
+			this.addPort(new BasePortModel(false, k));
 		});
 	}
 

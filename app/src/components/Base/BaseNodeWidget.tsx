@@ -114,15 +114,15 @@ export class BaseNodeWidget<
 						style={{ width: '100%', cursor: 'pointer' }}
 						onClick={() => this.onEval()}
 					>
-						Run
+						▶
 					</button>
 				)}
-				<div style={{ padding: 4, color: 'darkred' }}>{node.err}</div>
+				{node.err && <div style={{ padding: 4, color: 'darkred', background: 'antiquewhite'}}>{node.err}</div>}
 				{canEval &&
 					!hideRawData && (
 						<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
 					)}
-				{content && <div style={{ padding: 4 }}>{content}</div>}
+				{content && <div>{content}</div>}
 			</div>
 		);
 	}

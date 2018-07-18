@@ -12,35 +12,52 @@ export class PlotlyConfig {
 		'colorscale': 'YIGnBu'
 	};
 
-	static dataForChart(chartName: string, tensor: any, customDef: any = null) {
-		let t = nj.array(tensor);
-		let data = PlotlyConfig.chartData[chartName];
+	static dataForChart(chartName: string, tensor: any, customDef: any = null): [string|null, any[]] {
+		let data = {...PlotlyConfig.chartData[chartName]};
 		if (!data) {
-			return [];
+			return ['No input tensor', [data]];
 		}
 		if (customDef) {
 			Object.assign(data, customDef[0]);
 		}
-		console.log('Data shape:');
-		console.log(t.shape);
-		console.log('Expected dims:');
-		console.log(data._dataDim);
-		if (t.shape.length === data._dataDim + 1 && t.shape[0] === 1) {
-			t = t.pick(0);
-		}
+		let t = nj.array(tensor);
 		if (t.shape.length === data._dataDim) {
-			if (typeof data._dataKey === 'string') {
-				data[data._dataKey] = t.tolist();
-			} else {
-				console.log('error');
-			}
+			data[data._dataKey] = tensor;
+			return [null, [data]];
+		} else {
+			return [`Chart ${chartName} requires ${data._dataDim} dimensions but input data is of shape ${t.shape}`, [data]];
 		}
-		return [data];
 	}
 
 	static layoutForChart(chartName: string, tensor: any) {
-		return PlotlyConfig.basicLayout;
+		return PlotlyConfig.chartLayout[chartName];
 	}
+
+	static chartLayout = {
+		'heatmap' : {
+			...PlotlyConfig.basicLayout
+		},
+		'bar' : {
+			...PlotlyConfig.basicLayout
+		},
+		'scatter' : {
+			...PlotlyConfig.basicLayout
+		},
+		'box' : {
+			...PlotlyConfig.basicLayout,
+		},
+		'histogram' : {
+			...PlotlyConfig.basicLayout,
+			'margin': {t: 0, l: 30, r: 0, b: 20},
+		},
+		'histogram2d' : {
+			...PlotlyConfig.basicLayout,
+			'margin': {t: 0, l: 0, r: 0, b: 0},
+		},
+		'surface3d' : {
+			...PlotlyConfig.basicLayout,
+		}
+	};
 
 	static chartData = {
 		'heatmap' : {
@@ -85,12 +102,12 @@ export class PlotlyConfig {
 			'_dataDim' : 1,
 			'_dataKey' : 'x'
 		},
-		'histogram2d' : {
-			...PlotlyConfig.basicData,
-			'type': 'histogram2d',
-			'_dataDim' : 2,
-			'_dataKey' : ['x', 'y']
-		},
+		// 'histogram2d' : {
+		// 	...PlotlyConfig.basicData,
+		// 	'type': 'histogram2d',
+		// 	'_dataDim' : 2,
+		// 	'_dataKey' : ['x', 'y']
+		// },
 		'surface3d' : {
 			...PlotlyConfig.basicData,
 			'type': 'surface',

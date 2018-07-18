@@ -125,3 +125,7 @@ button {
     overflow-y: hidden;
     overflow-x: auto;
 }
+
+.code-editor-side .CodeMirror {
+    width: 100%;
+}

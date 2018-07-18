@@ -196,6 +196,9 @@ class App extends React.Component<Props, OwnState> {
 			_node = new LayerNodeModel(b);
 		} else if (isVisual(b)) {
 			_node = new VisualNodeModel(b);
+			_node.onChange(() => {
+				API.changeBlock(b.id, _node.code);
+			});
 		}
 
 		const node = _node as BaseNodeModel;
@@ -246,6 +249,7 @@ class App extends React.Component<Props, OwnState> {
 			block.outputMeta = blockRes[block.id] ? blockRes[block.id] as any : {};
 			// We get the data for all visual blocks and all blocks with errors
 			if (!blockRes[block.id] || (this.state.playing && block instanceof VisualNodeModel) || block.running) {
+				console.log('Retrieving results for', block.id);
 				API.getResults(evalId, block.id, (err, out) => {
 					block.running = false;
 					block.err = err;

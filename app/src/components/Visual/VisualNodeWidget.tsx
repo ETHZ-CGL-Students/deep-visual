@@ -2,12 +2,13 @@ import 'codemirror/lib/codemirror.css';
 import 'codemirror/mode/python/python';
 import * as React from 'react';
 const Plot = require('react-plotly.js');
-import Drawer from '@material-ui/core/Drawer';
-import ReactJson, { InteractionProps } from 'react-json-view';
+// import Drawer from '@material-ui/core/Drawer';
+// import ReactJson, { InteractionProps } from 'react-json-view';
 
 import { PlotlyConfig } from '../../PlotlyConfig';
 import { BaseNodeProps, BaseNodeWidget } from '../Base/BaseNodeWidget';
 
+import VisualConfigurator from './VisualConfigurator';
 import { VisualNodeModel } from './VisualNodeModel';
 
 export interface VisualNodeWidgetProps extends BaseNodeProps {
@@ -21,7 +22,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	VisualNodeWidgetState
 > {
 	content: any;
-	runIdx: number;
+	currentEvalId: string;
 	shouldRenderPlot: boolean;
 	plot: any;
 	state: {
@@ -32,7 +33,6 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	};
 	constructor(props: VisualNodeWidgetProps) {
 		super(props);
-		this.runIdx = -1;
 		this.shouldRenderPlot = true;
 		this.state = {
 			editorOpen: false,
@@ -41,25 +41,28 @@ export class VisualNodeWidget extends BaseNodeWidget<
 				width: 320, height: 320,
 				margin: {t: 0, l: 0, r: 0, b: 0}
 			},
-			data: {
+			data: [{
 				type: 'heatmap',
 				colorbar: {thickness: 10}
-			}
+			}]
 		};
 		this.onMouseDown = this.onMouseDown.bind(this);
 
 	}
 
-	// componentWillUpdate(nextProp: any) {
-	// }
-
 	componentDidUpdate(prevProps: any, prevState: any, snapshot: any) {
-		if (this.runIdx !== this.props.node.runIdx) {
-			this.runIdx = this.props.node.runIdx;
+		if (this.currentEvalId !== this.props.node.evalId) {
+			this.currentEvalId = this.props.node.evalId;
+			let [error, data] = PlotlyConfig.dataForChart(this.state.chartName, this.props.node.out, this.state.data);
+			if (error) {
+				console.log(error);
+				this.props.node.err = error;
+			}
+			let layout = PlotlyConfig.layoutForChart(this.state.chartName, this.props.node.out);
 			this.shouldRenderPlot = true;
 			this.setState({
-				data: PlotlyConfig.dataForChart(this.state.chartName, this.props.node.out),
-				layout: PlotlyConfig.layoutForChart(this.state.chartName, this.props.node.out)
+				data: data,
+				layout: layout
 			});
 		}
 	}
@@ -79,37 +82,40 @@ export class VisualNodeWidget extends BaseNodeWidget<
 
 	openStyleEditor() {
 		this.setState({editorOpen: true});
-		console.log(this.state);
 	}
 
-	closeStyleEditor() {
-		this.setState({editorOpen: false});
-	}
-
-	onDefUpdate(newDef: InteractionProps) {
+	updatePlotlyDefs(update: any) {
+		console.log('Update');
+		console.log(update);
 		this.shouldRenderPlot = true;
-		let def = newDef.updated_src;
-		this.setState({
-			data: PlotlyConfig.dataForChart(this.state.chartName, this.props.node.out, def),
-			layout: PlotlyConfig.layoutForChart(this.state.chartName, this.props.node.out)
-		});
+		this.setState(update);
 	}
 
-	handleSelectChart(v: any) {
-		let chartName = v.target.value;
-		this.shouldRenderPlot = true;
-		this.setState({
-			data: PlotlyConfig.dataForChart(chartName, this.props.node.out),
-			layout: PlotlyConfig.layoutForChart(chartName, this.props.node.out)
-		});
+	getInputShape() {
+		if (!this.props.node || !this.props.node.outputMeta) {
+			return '?';
+		}
+		// TODO: for now, this assumes a VisualNode as one input port only
+		let inputPort = this.props.node.getInPorts().find(() => true);
+		if (inputPort) {
+			return inputPort.getMeta() || '?';
+		} else {
+			return '?';
+		}
 	}
 
-	exposablePlotData() {
-		return false;
-	}
-
-	getPlotData() {
-		return null;
+	getOutputShape() {
+		if (!this.props.node || !this.props.node.outputMeta) {
+			return '?';
+		}
+		// TODO: for now, this assumes a VisualNode as one output port only
+		let outputPort = this.props.node.getOutPorts().find(() => true);
+		if (outputPort) {
+			console.log(outputPort);
+			return outputPort.getMeta() || '?';
+		} else {
+			return '?';
+		}
 	}
 
 	renderContent() {
@@ -121,6 +127,8 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		// React plot should be updated only on specific cases, controlled by shouldRenderPlot
 		if (!this.plot || this.shouldRenderPlot) {
 			this.shouldRenderPlot = false;
+			console.log('Should render now');
+			console.log(this.state.data);
 			this.plot = (
 				<Plot
 					data={this.state.data}
@@ -130,47 +138,29 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			);
 		}
 
-		let styles = {
-			drawerInner: {
-				width: 300,
-				height: '100vh',
-				background: '#282823',
-				padding: 10
-			}
-		};
-
 		this.content = (
 			<div
 				onMouseDownCapture={this.onMouseDown}
 			>
-				<div>
-					<button style={{float: 'right'}} onClick={() => this.openStyleEditor()}>Style</button>
-				</div>
 				{this.plot}
-				<Drawer anchor="right" open={this.state.editorOpen} onClose={() => this.closeStyleEditor()}>
-					<div
-						onKeyUp={(e) => e.stopPropagation()}
-						style={styles.drawerInner}
-					>
-						<select onChange={(v) => this.handleSelectChart(v)}>
-							{Object.keys(PlotlyConfig.chartData).map((key) => {
-								return (
-								<option
-									key={key}
-									value={key}
-								>
-									{key}
-								</option>
-								);
-							})}
-						</select>
-						<ReactJson
-							src={this.state.data}
-							theme="monokai"
-							onEdit={(def) => this.onDefUpdate(def)}
-						/>
-					</div>
-				</Drawer>
+				<div>
+					<button style={{width: '100%'}} onClick={() => this.openStyleEditor()}>Configurator</button>
+				</div>
+				<VisualConfigurator
+					open={this.state.editorOpen}
+					onCloseRequest={() => this.setState({editorOpen: false})}
+					data={this.state.data}
+					layout={this.state.layout}
+					code={this.props.node.code}
+					onDataUpdate={(data) => this.updatePlotlyDefs({data: data})}
+					onLayoutUpdate={(layout) => this.updatePlotlyDefs({layout: layout})}
+					onCodeUpdate={(code) => this.props.node.changeCode(code)}
+					onChartNameUpdate={(chartName) => this.setState({chartName: chartName})}
+					inputShape={this.getInputShape()}
+					outputShape={this.getOutputShape()}
+					tensor={this.props.node.out}
+				/>
+
 			</div>
 		);
 		return this.content;
