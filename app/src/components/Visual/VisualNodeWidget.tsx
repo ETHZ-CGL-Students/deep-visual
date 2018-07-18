@@ -44,6 +44,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	componentDidUpdate(prevProps: any, prevState: any, snapshot: any) {
 		if (this.currentEvalId !== this.props.node.evalId) {
 			let defaultChart = PlotlyConfig.recommendedChartForTensor(this.props.node.out);
+			let defaultLayout = PlotlyConfig.layoutForChart(this.state.chartName || defaultChart, this.props.node.out);
 			this.currentEvalId = this.props.node.evalId;
 			this.shouldRenderPlot = true;
 			let [error, data] = PlotlyConfig.metadataForChart(
@@ -52,10 +53,9 @@ export class VisualNodeWidget extends BaseNodeWidget<
 				this.state.data
 			);
 			this.props.node.err = error;
-			let layout = PlotlyConfig.layoutForChart(this.state.chartName || defaultChart, this.props.node.out);
 			this.setState({
 				data: data,
-				layout: layout
+				layout: this.state.layout || defaultLayout
 			});
 		}
 	}
@@ -64,15 +64,15 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		event.stopPropagation();
 	}
 
-	onInitialized(plotDef: any, e: any) {
-		let data = plotDef.data;
-		delete data.z;
-		this.setState({
-			layout: plotDef.layout,
-			data: data,
-			chartName: data.type
-		});
-	}
+	// onInitialized(plotDef: any, e: any) {
+	// 	let data = plotDef.data;
+	// 	delete data.z;
+	// 	this.setState({
+	// 		layout: plotDef.layout,
+	// 		data: data,
+	// 		chartName: data[0].type
+	// 	});
+	// }
 
 	openStyleEditor() {
 		this.setState({editorOpen: true});
@@ -81,6 +81,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	updatePlotlyDefs(data: any[]|null, layout: any|null, code: string|null, chartName: string) {
 		if (code) {
 			this.props.node.changeCode(code);
+			this.props.node.eval();
 		}
 		let update: any = {};
 		if (data) {
@@ -137,7 +138,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
 					onClick={(e: any) => console.log(e)}
-					onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
+					// onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
 				/>
 			);
 		}
@@ -148,11 +149,12 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			>
 				{this.plot}
 				<div>
-					<button style={{width: '100%'}} onClick={() => this.openStyleEditor()}>Configurator</button>
+					<button style={{width: '100%'}} onClick={() => this.openStyleEditor()}>Configure</button>
 				</div>
 				<VisualConfigurator
 					open={this.state.editorOpen}
 					onCloseRequest={() => this.setState({editorOpen: false})}
+					chartName={this.state.chartName || ''}
 					data={this.state.data}
 					layout={this.state.layout}
 					code={this.props.node.code}
