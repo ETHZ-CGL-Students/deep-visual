@@ -13,7 +13,7 @@ import traceback as tb
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, deque
 from eventlet.green import threading, Queue, time
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_socketio import SocketIO
 from threading import Thread
 from types import ModuleType
@@ -92,9 +92,21 @@ class LocalManager(socketio.PubSubManager):
 
 # Setup Flask web server & socketio
 mgr = LocalManager()
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='', static_folder='./app/build/')
 sio = SocketIO(app=app, debug=True, async_mode='eventlet',
                json=MyJSONWrapper, client_manager=LocalManager(""))
+
+
+# Serve our built app
+@app.route('/')
+def index():
+    return app.send_static_file('index.html')
+
+
+@app.route('/<path:path>')
+def send_html(path):
+    print(path)
+    return send_from_directory('./app/build/', path)
 
 
 # Context manager allows us to capture 'print' statements and other output
