@@ -136,6 +136,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 				<Plot
 					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
+					onClick={(e: any) => console.log(e)}
 					onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
 				/>
 			);

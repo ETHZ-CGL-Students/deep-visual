@@ -37,7 +37,6 @@ export class PlotlyConfig {
 		if (t.shape.length === data._dataDim) {
 			// data[data._dataKey] = tensor;
 			delete data[data._dataKey];
-			// console.log(tensor);
 			return [null, [data]];
 		} else {
 			return [`Chart ${chartName} requires ${data._dataDim} dimensions but input data is of shape ${t.shape}`, [data]];

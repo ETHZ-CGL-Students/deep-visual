@@ -158,7 +158,7 @@ class App extends React.Component<Props, OwnState> {
 
 		API.onBlockCreate(b => this.addNodeForBlock(b));
 		API.onBlockChange(b => {
-			console.log(b);
+			return;
 		});
 		API.onBlockMove(b => {
 			const node = this.model.getNode(b.id) as BaseNodeModel;

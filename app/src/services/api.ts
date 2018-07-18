@@ -223,7 +223,6 @@ class API {
 				console.error(data[0]);
 				return callback(data[0], null);
 			}
-			console.log(data[1]);
 			if (data[1] instanceof ArrayBuffer) {
 
 				callback(null, readMatrixFromBuffer(data[1]));

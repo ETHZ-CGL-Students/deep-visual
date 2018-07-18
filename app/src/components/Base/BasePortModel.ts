@@ -39,8 +39,6 @@ export class BasePortModel extends PortModel {
 	getMeta() {
 		let getMetaFromPort = (port: BasePortModel | null) => {
 			if (port && port.parent && port.parent.outputMeta) {
-				console.log(port.parent);
-				console.log(port.parent.outputMeta);
 				return port.parent.outputMeta[port.label];
 			} else {
 				return null;
