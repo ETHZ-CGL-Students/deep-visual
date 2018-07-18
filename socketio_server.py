@@ -32,7 +32,7 @@ class MyJSONEncoder(json.JSONEncoder):
         if hasattr(obj, 'to_json'):
             return obj.to_json()
         elif isinstance(obj, np.ndarray):
-            return "<ndarray [" + ', '.join(map(str, obj.shape)) + "]>"
+            return "[" + ', '.join(map(str, obj.shape)) + "]"
         return "<" + type(obj).__name__ + ">"
 
 
@@ -124,6 +124,9 @@ def stdoutIO(stdout=None):
 def serialize_matrix(mat):
     """ Serialize a matrix to an array of bytes: [nDims] [dim1, dim2, ...] [values]"""
 
+    if np.isscalar(mat):
+        mat = np.array([mat])
+
     if mat is None or len(mat) == 0:
         return (0).to_bytes(4, 'little')
 
@@ -210,7 +213,7 @@ class Block(metaclass=ABCMeta):
         }
 
     @abstractmethod
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         """ Evaluate this block using the given input, returning the output"""
         return None
 
@@ -239,20 +242,20 @@ class CodeBlock(Block):
         json['code'] = self.code
         return json
 
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         # Empty all outputs (if not already set - this allows
         # passing inputs by using the same port name)
         for k in self.outputs.keys():
-            if k not in inputs:
-                inputs[k] = None
+            if k not in context:
+                context[k] = None
 
         # Run our custom code
-        exec(self.code, gs, inputs)
+        exec(self.code, gs, context)
 
         # Save the output ports of our execution
         outs = {}
         for k in self.outputs.keys():
-            outs[k] = inputs[k]
+            outs[k] = context[k]
 
         # Return an object with our output ports
         return outs
@@ -281,8 +284,8 @@ class LayerBlock(Block):
         json['type'] = type(self.layer).__name__
         return json
 
-    def eval(self, gs, inputs):
-        x = inputs['input']
+    def eval(self, gs, context):
+        x = context['input']
         eval_result = OrderedDict(
             [("w"+str(i), v) for (i, v) in enumerate(self.layer.get_weights())])
         if self.layer is None or x is None:
@@ -317,15 +320,14 @@ class VariableBlock(Block):
         json['name'] = self.name
         return json
 
-    def eval(self, gs, inputs):
+    def eval(self, gs, context):
         return {'value': self.value}
 
 
-class VisualBlock(Block):
+class VisualBlock(CodeBlock):
     """ An block used to visualize data (usually matrices) """
-
-    def __init__(self, id=None, x=10, y=10):
-        super(VisualBlock, self).__init__(id=id, x=x, y=y)
+    def __init__(self, data=None):
+        super(VisualBlock, self).__init__(data=data)
         self.inputs = OrderedDict([
             ('input', None)
         ])
@@ -336,6 +338,8 @@ class VisualBlock(Block):
         self.outputs = OrderedDict([
             ('__output__', [])
         ])
+        if self.code == '' or not self.code:
+            self.code = '__output__ = input'
 
     def to_json(self):
         """ This is called by our custom json serializer """
@@ -343,12 +347,6 @@ class VisualBlock(Block):
         json = super(VisualBlock, self).to_json()
         json['class'] = 'VisualBlock'
         return json
-
-    def eval(self, gs, inputs):
-        return {
-            '__output__': inputs['input']
-        }
-
 
 
 # Exposed variables
@@ -382,7 +380,7 @@ def parseDataObject(d):
         return VariableBlock(
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
     elif c == 'VisualBlock':
-        return VisualBlock(id=d['id'], x=d['x'], y=d['y'])
+        return VisualBlock(data=d)
 
     return d
 
@@ -525,8 +523,10 @@ def delete_block(data):
     saveData()
 
 
-# Eval an array of blocks, building the execution tree required
-def eval_blocks(blocks):
+# Eval an array of blocks, building the execution tree required.
+# Emit "eval_results" to inform the client about new evaluations available.
+# On "eval_results", the client is provided with metadata about all outputs.
+def evalBlocks(blocks):
     global results
 
     # Build our execution tree
@@ -537,10 +537,20 @@ def eval_blocks(blocks):
         ins = list(
             map(lambda l: l.fromBlock,
                 filter(lambda l: l is not None, b.inputs.values())))
-        bs.extend(ins)
+        for bi in ins:
+            if bi not in bs:
+                # Well, easy, just insert in front
+                bs.insert(0, bi)
+            else:
+                # Do not need to insert, but surely b depends on bi so check position
+                # This means that we need to check bi comes *before* b
+                bi_pos = bs.index(bi)
+                b_pos = bs.index(b)
+                if bi_pos > b_pos:
+                    # Wrong. Move bi just before b.
+                    bs.insert(b_pos, bs.pop(bi_pos))
         todo.extend(ins)
 
-    bs.reverse()
     outs = {}
 
     # Save our globals, they will be exposed to the block eval
@@ -549,20 +559,20 @@ def eval_blocks(blocks):
     # Traverse the blocks
     for b in bs:
         # Collect inputs for this block
-        inputs = {}
+        context = {}
 
         # Set inputs from links
         skip = False
         for k, l in b.inputs.items():
             if l is None:
-                inputs[k] = None
+                context[k] = None
             else:
                 # We found an input with an error, so skip this block
                 if outs[l.fromBlock.id][1] is None:
                     skip = True
                     break
                 # Otherwise set the input to the output of that block
-                inputs[k] = outs[l.fromBlock.id][1][l.fromPort]
+                context[k] = outs[l.fromBlock.id][1][l.fromPort]
 
         # If one of our inputs had an error then we just skip this block
         if skip is True:
@@ -572,7 +582,7 @@ def eval_blocks(blocks):
         with stdoutIO() as s:
             try:
                 # Run the function
-                out = [None, b.eval(gs, inputs)]
+                out = [None, b.eval(gs, context)]
             except:
                 print('Error')
                 # Save any error
@@ -595,52 +605,41 @@ def eval_blocks(blocks):
     # Collect our results
     res = {
         'id': execId,
-        'blocks': {k: True if d[0] is None else False for k, d in outs.items()}
+        'blocks': json.loads(MyJSONWrapper.dumps({k:d[1] if d[0] is None else False for k, d in outs.items()}))
     }
 
-    # Inform all clients about the exection
-    sio.emit('result_new', data=res)
+    # Inform all clients that a new execution is ready, passing some metadata about the intermediate outputs
+    sio.emit('eval_results', data=res)
 
-    # Return the id to the client so it can get the results
     return res
 
 
 # Evaluate all (visual) blocks
+# Does not return any value. Client will be informed with 'eval_results' once results are ready for retrieval.
 @sio.on('block_eval_all')
 def eval_all_blocks():
     print('Eval all')
-
-    return eval_blocks([b for b in blocks if isinstance(b, VisualBlock)])
+    evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
 # Evaluating a block (="running")
+# Does not return any value. Client will be informed with 'eval_results' once results are ready for retrieval.
 @sio.on('block_eval')
 def eval_block(data):
     # Find the code block by id
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
-        return ['Invalid block']
+        print ('Invalid block')
+        return
 
     if isinstance(block, LayerBlock):
-        return ['Cannot evaluate layer directly']
+        print ('Cannot evaluate layer directly')
+        return
 
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    res = eval_blocks([block])
-
-    # Get the output for the block we ran the eval socket.io event
-    data = results[res['id']][block.id]
-
-    # Return our results to the client
-    # If the client clicked eval on a visual block then return binary data
-    if data[0] is None:
-        if isinstance(block, VisualBlock):
-            return serialize_matrix(data[1]['__output__'])
-        else:
-            return [None, data[1]]
-    else:
-        return [data[0], None]
+    evalBlocks([block])
 
 
 # Getting the results of a certain execution for a certain block
@@ -667,7 +666,7 @@ def get_result(data):
     # If it's a visual block return binary data
     if res[0] is None:
         if isinstance(block, VisualBlock):
-            return serialize_matrix(res[1]['__output__'])
+            return [None, serialize_matrix(res[1]['__output__'])]
         else:
             return [None, res[1]]
     else:

@@ -39,7 +39,7 @@ export function isCode(block: Block): block is CodeBlock {
 	return block.class === 'CodeBlock';
 }
 
-export interface VisualBlock extends Block {}
+export interface VisualBlock extends CodeBlock {}
 export function isVisual(block: Block): block is VisualBlock {
 	return block.class === 'VisualBlock';
 }

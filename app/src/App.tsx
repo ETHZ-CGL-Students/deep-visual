@@ -182,29 +182,9 @@ class App extends React.Component<Props, OwnState> {
 			this.forceUpdate();
 		});
 
-		API.onNewResult((id, blockRes) => {
-			// Add the result id to our cache
-			this.setState({
-				results: {
-					...this.state.results,
-					[id]: {}
-				}
-			});
-
-			// If we're in play mode then we always want to show new results
-			// as soon as they become available, so fetch all new data
-			if (this.state.playing) {
-				Object.keys(blockRes).forEach(blockId => {
-					const block = this.state.blocks[blockId];
-					// We get the data for all visual blocks and all blocks with errors
-					if (!blockRes[blockId] || block instanceof VisualNodeModel) {
-						this.showResult(id, block);
-					} else {
-						block.err = null;
-						block.out = null;
-					}
-				});
-			}
+		API.onEvalResults((id, blockRes) => {
+			console.log('New results available: ' + id);
+			this.handleEvalData(id, blockRes);
 		});
 	}
 
@@ -221,21 +201,17 @@ class App extends React.Component<Props, OwnState> {
 			_node = new LayerNodeModel(b);
 		} else if (isVisual(b)) {
 			_node = new VisualNodeModel(b);
+			_node.onChange(() => {
+				API.changeBlock(b.id, _node.code);
+			});
 		}
 
 		const node = _node as BaseNodeModel;
 
 		node.setPosition(b.x, b.y);
 		node.onEval(() => {
-			node.err = null;
-			node.out = null;
 			node.running = true;
-			API.evalBlock(b.id, (err, out) => {
-				node.err = err;
-				node.out = out;
-				node.running = false;
-				this.forceUpdate();
-			});
+			API.evalBlock(b.id);
 		});
 		node.onMove(debounce(() => API.moveBlock(b.id, node.x, node.y), 100));
 		node.onNewPort(port => API.createPort(b.id, port.in, port.name));
@@ -268,19 +244,27 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
-		// Eval all blocks
-		API.evalAllBlocks((id, blockRes) => {
-			// Grab the results for each block
-			Object.keys(blockRes).forEach(blockId => {
-				const block = this.state.blocks[blockId];
-				// We get the data for all visual blocks and all blocks with errors
-				if (!blockRes[block.id] || block instanceof VisualNodeModel) {
-					this.showResult(id, block);
-				} else {
-					block.err = null;
-					block.out = null;
-				}
-			});
+		API.evalAllBlocks();
+	}
+
+	handleEvalData(evalId: string, blockRes: {[blockId: string]: {[outputId: string]: string} | boolean}) {
+		// Grab the results for each block
+		Object.keys(blockRes).forEach(blockId => {
+			const block = this.state.blocks.find(
+				b => b.id === blockId
+			) as BaseNodeModel;
+			block.outputMeta = blockRes[block.id] ? blockRes[block.id] as any : {};
+			// We get the data for all visual blocks and all blocks with errors
+			if (!blockRes[block.id] || (this.state.playing && block instanceof VisualNodeModel) || block.running) {
+				console.log('Retrieving results for', block.id);
+				API.getResults(evalId, block.id, (err, out) => {
+					block.running = false;
+					block.err = err;
+					block.out = out;
+					block.evalId = evalId;
+					this.forceUpdate();
+				});
+			}
 		});
 	}
 

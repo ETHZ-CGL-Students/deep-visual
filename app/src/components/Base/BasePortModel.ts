@@ -11,7 +11,6 @@ export class BasePortModel extends PortModel {
 
 	constructor(isInput: boolean, name: string, label?: string, id?: string) {
 		super(name, label, id);
-
 		this.in = isInput;
 		this.label = label ? label : name;
 	}
@@ -35,6 +34,29 @@ export class BasePortModel extends PortModel {
 
 		// Inform model of our change
 		this.parent.renamePort(this, oldName);
+	}
+
+	getMeta() {
+		let getMetaFromPort = (port: BasePortModel | null) => {
+			if (port && port.parent && port.parent.outputMeta) {
+				return port.parent.outputMeta[port.label];
+			} else {
+				return null;
+			}
+		};
+
+		if (this.in) {
+			// Go to parent block to find meta information
+			let incomingLinks = Object.values(this.links);
+			if (incomingLinks.length) {
+				return getMetaFromPort(<BasePortModel> incomingLinks[0].sourcePort);
+			} else {
+				return null;
+			}
+		} else {
+			// Output port, so meta are available in this block
+			return getMetaFromPort(this);
+		}
 	}
 
 	canLinkToPort(port: BasePortModel): boolean {

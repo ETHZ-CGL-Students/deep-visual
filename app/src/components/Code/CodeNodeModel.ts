@@ -6,8 +6,8 @@ export class CodeNodeModel extends BaseNodeModel {
 	code: string;
 	protected changeListener?: () => void;
 
-	constructor(block: CodeBlock) {
-		super('code', block.id);
+	constructor(block: CodeBlock, type: string = 'code') {
+		super(type, block.id);
 
 		this.code = block.code;
 		this.color = '#FFE066';
@@ -24,6 +24,7 @@ export class CodeNodeModel extends BaseNodeModel {
 	onChange(listener: () => void) {
 		this.changeListener = listener;
 	}
+
 	changeCode(code: string) {
 		this.code = code;
 		if (this.changeListener) {
