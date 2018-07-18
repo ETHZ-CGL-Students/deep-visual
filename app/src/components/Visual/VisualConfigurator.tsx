@@ -20,11 +20,8 @@ export interface VisualConfiguratorProps {
 	code: any;
 	inputShape: string;
 	outputShape: string;
-	onDataUpdate: (data: any) => void;
-	onLayoutUpdate: (layout: any) => void;
-	onCodeUpdate: (code: string) => void;
-	onChartNameUpdate: (chartName: string) => void;
-	tensor: any;
+	onUpdate: (data: any[]|null, layout: any|null, code: string|null, chartName: string) => void;
+	node: any;
 }
 
 export default class VisualConfigurator extends React.Component<VisualConfiguratorProps> {
@@ -43,44 +40,40 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 	}
 
 	onDataUpdate(defs: InteractionProps) {
-		console.log(defs);
-		let newData = PlotlyConfig.dataForChart(this.state.chartName, this.props.tensor, defs.updated_src);
-		this.props.onDataUpdate(newData);
+		let newData = PlotlyConfig.metadataForChart(this.state.chartName, this.props.node.out, defs.updated_src);
+		this.props.onUpdate(newData, null, null, this.state.chartName);
 	}
 
 	onLayoutUpdate(defs: InteractionProps) {
-		console.log(defs);
-		this.props.onLayoutUpdate(defs.updated_src);
+		this.props.onUpdate(null, defs.updated_src, null, this.state.chartName);
 	}
 
 	onCodeSave() {
 		if (this.state.tempCode) {
 			let code = this.state.tempCode;
 			this.setState({tempCode: undefined}, () => {
-				this.props.onCodeUpdate(code);
+				this.props.onUpdate(null, null, code, this.state.chartName);
 			});
 		}
 	}
 
 	handleSelectChart(chartName: any) {
-		console.log(chartName);
 		this.setState({chartName: chartName});
-		let [error, newData] = PlotlyConfig.dataForChart(chartName, this.props.tensor);
-		if (error) {
-			console.log('Error', error);
-		}
-		this.props.onDataUpdate(newData);
-		let newLayout = PlotlyConfig.layoutForChart(chartName, this.props.tensor);
-		this.props.onLayoutUpdate(newLayout);
-		this.props.onChartNameUpdate(chartName);
+		let [error, newData] = PlotlyConfig.metadataForChart(chartName, this.props.node.out);
+		this.props.node.err = error;
+		let newLayout = PlotlyConfig.layoutForChart(chartName, this.props.node.out);
+		this.props.onUpdate(newData, newLayout, null, this.state.chartName);
 	}
 
 	static cleanData (originalData: any[]) {
 		let data: any[] = [];
+		if (!originalData) {
+			return [];
+		}
 		originalData.forEach((d) => {
 			let nd = {...d};
-			// let dataKey = nd._dataKey;
-			// nd[dataKey] = ;
+			let dataKey = nd._dataKey;
+			nd[dataKey] = 'data';
 			// delete nd._dataDim;
 			data.push(nd);
 		});

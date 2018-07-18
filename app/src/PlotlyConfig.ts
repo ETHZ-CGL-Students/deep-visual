@@ -12,9 +12,22 @@ export class PlotlyConfig {
 		'colorscale': 'YIGnBu'
 	};
 
-	static dataForChart(chartName: string, tensor: any, customDef: any = null): [string|null, any[]] {
+	static recommendedChartForTensor(tensor: any) {
+		if (!tensor) {
+			return 'Heatmap';
+		}
+		let t = nj.array(tensor);
+		if (t.shape.length === 1 && t.shape[0] < 100) {
+			return 'line';
+		} else if (t.shape.length === 1) {
+			return 'histogram';
+		}
+		return 'heatmap';
+	}
+
+	static metadataForChart(chartName: string, tensor: any, customDef: any = null): [string|null, any[]] {
 		let data = {...PlotlyConfig.chartData[chartName]};
-		if (!data) {
+		if (!tensor) {
 			return ['No input tensor', [data]];
 		}
 		if (customDef) {
@@ -22,11 +35,21 @@ export class PlotlyConfig {
 		}
 		let t = nj.array(tensor);
 		if (t.shape.length === data._dataDim) {
-			data[data._dataKey] = tensor;
+			// data[data._dataKey] = tensor;
+			delete data[data._dataKey];
+			// console.log(tensor);
 			return [null, [data]];
 		} else {
 			return [`Chart ${chartName} requires ${data._dataDim} dimensions but input data is of shape ${t.shape}`, [data]];
 		}
+	}
+
+	static fullDataForChart(metadata: any[], tensor: any) {
+		let result = metadata.slice(0); // copy
+		result.forEach((d) => {
+			d[d._dataKey] = tensor;
+		});
+		return result;
 	}
 
 	static layoutForChart(chartName: string, tensor: any) {
@@ -38,21 +61,24 @@ export class PlotlyConfig {
 			...PlotlyConfig.basicLayout
 		},
 		'bar' : {
-			...PlotlyConfig.basicLayout
+			...PlotlyConfig.basicLayout,
+			'margin': {t: 20, l: 30, r: 20, b: 20},
 		},
-		'scatter' : {
-			...PlotlyConfig.basicLayout
+		'line' : {
+			...PlotlyConfig.basicLayout,
+			'margin': {t: 20, l: 30, r: 20, b: 20},
 		},
 		'box' : {
 			...PlotlyConfig.basicLayout,
+			'margin': {t: 20, l: 30, r: 20, b: 20},
 		},
 		'histogram' : {
 			...PlotlyConfig.basicLayout,
-			'margin': {t: 0, l: 30, r: 0, b: 20},
+			'margin': {t: 20, l: 30, r: 20, b: 20},
 		},
 		'histogram2d' : {
 			...PlotlyConfig.basicLayout,
-			'margin': {t: 0, l: 0, r: 0, b: 0},
+			'margin': {t: 20, l: 30, r: 20, b: 20},
 		},
 		'surface3d' : {
 			...PlotlyConfig.basicLayout,
@@ -75,7 +101,7 @@ export class PlotlyConfig {
 			'_dataDim' : 1,
 			'_dataKey' : 'y'
 		},
-		'scatter' : {
+		'line' : {
 			...PlotlyConfig.basicData,
 			'type': 'scatter',
 			'mode': 'lines',

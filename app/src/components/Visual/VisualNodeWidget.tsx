@@ -27,24 +27,15 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	plot: any;
 	state: {
 		editorOpen: boolean,
-		chartName: string,
-		layout: any,
-		data: any
+		chartName?: string,
+		layout?: any,
+		data?: any
 	};
 	constructor(props: VisualNodeWidgetProps) {
 		super(props);
-		this.shouldRenderPlot = true;
+		this.shouldRenderPlot = false;
 		this.state = {
 			editorOpen: false,
-			chartName: 'heatmap',
-			layout: {
-				width: 320, height: 320,
-				margin: {t: 0, l: 0, r: 0, b: 0}
-			},
-			data: [{
-				type: 'heatmap',
-				colorbar: {thickness: 10}
-			}]
 		};
 		this.onMouseDown = this.onMouseDown.bind(this);
 
@@ -52,14 +43,16 @@ export class VisualNodeWidget extends BaseNodeWidget<
 
 	componentDidUpdate(prevProps: any, prevState: any, snapshot: any) {
 		if (this.currentEvalId !== this.props.node.evalId) {
+			let defaultChart = PlotlyConfig.recommendedChartForTensor(this.props.node.out);
 			this.currentEvalId = this.props.node.evalId;
-			let [error, data] = PlotlyConfig.dataForChart(this.state.chartName, this.props.node.out, this.state.data);
-			if (error) {
-				console.log(error);
-				this.props.node.err = error;
-			}
-			let layout = PlotlyConfig.layoutForChart(this.state.chartName, this.props.node.out);
 			this.shouldRenderPlot = true;
+			let [error, data] = PlotlyConfig.metadataForChart(
+				this.state.chartName || defaultChart,
+				this.props.node.out,
+				this.state.data
+			);
+			this.props.node.err = error;
+			let layout = PlotlyConfig.layoutForChart(this.state.chartName || defaultChart, this.props.node.out);
 			this.setState({
 				data: data,
 				layout: layout
@@ -77,6 +70,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		this.setState({
 			layout: plotDef.layout,
 			data: data,
+			chartName: data.type
 		});
 	}
 
@@ -84,9 +78,21 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		this.setState({editorOpen: true});
 	}
 
-	updatePlotlyDefs(update: any) {
-		console.log('Update');
-		console.log(update);
+	updatePlotlyDefs(data: any[]|null, layout: any|null, code: string|null, chartName: string) {
+		if (code) {
+			this.props.node.changeCode(code);
+		}
+		let update: any = {};
+		if (data) {
+			/* tslint:disable: no-string-literal */
+			update['data'] = data;
+		}
+		if (layout) {
+			/* tslint:disable: no-string-literal */
+			update['layout'] = layout;
+		}
+		/* tslint:disable: no-string-literal */
+		update['chartName'] = chartName;
 		this.shouldRenderPlot = true;
 		this.setState(update);
 	}
@@ -111,7 +117,6 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		// TODO: for now, this assumes a VisualNode as one output port only
 		let outputPort = this.props.node.getOutPorts().find(() => true);
 		if (outputPort) {
-			console.log(outputPort);
 			return outputPort.getMeta() || '?';
 		} else {
 			return '?';
@@ -120,18 +125,16 @@ export class VisualNodeWidget extends BaseNodeWidget<
 
 	renderContent() {
 		// Avoid plotting if no data is available
-		if (!this.props.node || !this.props.node.out) {
+		if (!this.props.node) {
 			return null;
 		}
 
 		// React plot should be updated only on specific cases, controlled by shouldRenderPlot
-		if (!this.plot || this.shouldRenderPlot) {
+		if (this.shouldRenderPlot) {
 			this.shouldRenderPlot = false;
-			console.log('Should render now');
-			console.log(this.state.data);
 			this.plot = (
 				<Plot
-					data={this.state.data}
+					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
 					onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
 				/>
@@ -152,13 +155,10 @@ export class VisualNodeWidget extends BaseNodeWidget<
 					data={this.state.data}
 					layout={this.state.layout}
 					code={this.props.node.code}
-					onDataUpdate={(data) => this.updatePlotlyDefs({data: data})}
-					onLayoutUpdate={(layout) => this.updatePlotlyDefs({layout: layout})}
-					onCodeUpdate={(code) => this.props.node.changeCode(code)}
-					onChartNameUpdate={(chartName) => this.setState({chartName: chartName})}
+					onUpdate={(d, l, c, n) => this.updatePlotlyDefs(d, l, c, n)}
 					inputShape={this.getInputShape()}
 					outputShape={this.getOutputShape()}
-					tensor={this.props.node.out}
+					node={this.props.node}
 				/>
 
 			</div>
