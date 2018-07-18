@@ -536,10 +536,20 @@ def evalBlocks(blocks):
         ins = list(
             map(lambda l: l.fromBlock,
                 filter(lambda l: l is not None, b.inputs.values())))
-        bs.extend(ins)
+        for bi in ins:
+            if bi not in bs:
+                # Well, easy, just insert in front
+                bs.insert(0, bi)
+            else:
+                # Do not need to insert, but surely b depends on bi so check position
+                # This means that we need to check bi comes *before* b
+                bi_pos = bs.index(bi)
+                b_pos = bs.index(b)
+                if bi_pos > b_pos:
+                    # Wrong. Move bi just before b.
+                    bs.insert(b_pos, bs.pop(bi_pos))
         todo.extend(ins)
 
-    bs.reverse()
     outs = {}
 
     # Save our globals, they will be exposed to the block eval
