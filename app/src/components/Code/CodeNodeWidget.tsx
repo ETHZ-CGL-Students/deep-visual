@@ -23,8 +23,8 @@ export class CodeNodeWidget extends BaseNodeWidget<
 	CodeNodeWidgetState
 > {
 	state: {
-		dialogOpen: boolean,
-		codeEdited: string
+		dialogOpen: boolean;
+		codeEdited: string;
 	};
 	constructor(props: CodeNodeWidgetProps) {
 		super(props);
@@ -36,24 +36,26 @@ export class CodeNodeWidget extends BaseNodeWidget<
 
 	onSave() {
 		this.props.node.changeCode(this.state.codeEdited);
-		this.setState({dialogOpen: false});
+		this.setState({ dialogOpen: false });
 	}
 
 	onCancel() {
-		this.setState({dialogOpen: false});
+		this.setState({ dialogOpen: false });
 	}
 
 	renderContent() {
 		const { node } = this.props;
 
-		let styles = {
+		let styles: { [x: string]: React.CSSProperties } = {
 			textarea: {
 				width: '100%',
 				display: 'block',
 				maxWidth: '100%',
 				padding: '15px 15px 30px',
 				border: 'none',
-				borderRadius: '5px'
+				boxSizing: 'border-box',
+				borderRadius: '5px',
+				resize: 'none'
 			}
 		};
 
@@ -68,7 +70,7 @@ export class CodeNodeWidget extends BaseNodeWidget<
 					style={styles.textarea}
 					value={node.code}
 					readOnly={true}
-					onClick={() => this.setState({dialogOpen: true})}
+					onClick={() => this.setState({ dialogOpen: true })}
 				/>
 				<Dialog
 					open={this.state.dialogOpen}
@@ -78,7 +80,7 @@ export class CodeNodeWidget extends BaseNodeWidget<
 					<DialogContent>
 						<CodeMirror
 							value={node.code}
-							onChange={c => this.setState({codeEdited: c})}
+							onChange={c => this.setState({ codeEdited: c })}
 							options={{
 								mode: 'python',
 								lineNumbers: true,

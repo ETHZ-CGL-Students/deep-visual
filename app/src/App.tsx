@@ -17,8 +17,8 @@ import {
 	Toolbar,
 	Typography
 } from '@material-ui/core';
+import AddIcon from '@material-ui/icons/Add';
 import CloseIcon from '@material-ui/icons/Close';
-import MenuIcon from '@material-ui/icons/Menu';
 import * as React from 'react';
 import {
 	DiagramEngine,
@@ -47,14 +47,15 @@ interface Props {}
 interface OwnState {
 	connected: boolean;
 	loading: boolean;
-	blocks: BaseNodeModel[];
-	links: BaseLinkModel[];
+	blocks: { [x: string]: BaseNodeModel };
 	vars: Variable[];
+	results: { [x: string]: { [x: string]: [any, any] } };
 	epochProgress: number;
 	batchProgress: number;
 	menu: boolean;
 	playing: boolean;
 	filter: string;
+	anchor: HTMLElement | undefined;
 }
 
 class App extends React.Component<Props, OwnState> {
@@ -68,14 +69,15 @@ class App extends React.Component<Props, OwnState> {
 		this.state = {
 			connected: false,
 			loading: true,
-			blocks: [],
-			links: [],
+			blocks: {},
 			vars: [],
+			results: {},
 			epochProgress: 0,
 			batchProgress: 0,
 			menu: false,
 			playing: true,
-			filter: ''
+			filter: '',
+			anchor: undefined
 		};
 	}
 
@@ -90,23 +92,28 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
-		API.onConnet(() => {
-			this.setState({ connected: true });
-		});
-		API.onDisconnet(() => {
-			this.setState({ connected: false });
-		});
+		API.onConnet(() => this.setState({ connected: true }));
+		API.onDisconnet(() => this.setState({ connected: false }));
 
-		API.onEpochBegin((epoch: number, epochs: number) => {
-			this.setState({ epochProgress: (epoch / epochs) * 100 });
-		});
-		API.onBatchBegin((batch: number, batches: number) => {
-			this.setState({ batchProgress: (batch / batches) * 100 });
-		});
+		API.onEpochBegin((epoch: number, epochs: number) =>
+			this.setState({ epochProgress: (epoch / epochs) * 100 })
+		);
+		API.onBatchBegin((batch: number, batches: number) =>
+			this.setState({ batchProgress: (batch / batches) * 100 })
+		);
 
-		API.getData(({ blocks, links, vars }) => {
+		API.getData(({ blocks, links, vars, results }) => {
+			console.log(results);
+
+			const res = {};
+			results.forEach(r => (res[r] = {}));
+
 			vars.sort((a, b) => a.name.localeCompare(b.name));
-			this.setState({ vars, loading: false });
+			this.setState({
+				vars,
+				results: res,
+				loading: false
+			});
 
 			const blockModels: { [x: string]: BaseNodeModel } = {};
 			blocks.forEach(b => (blockModels[b.id] = this.addNodeForBlock(b)));
@@ -147,9 +154,6 @@ class App extends React.Component<Props, OwnState> {
 					}
 				});
 				this.model.addLink(linkModel);
-				this.setState(prevState => ({
-					links: prevState.links.concat(linkModel)
-				}));
 			});
 
 			this.engine.zoomToFit();
@@ -158,6 +162,7 @@ class App extends React.Component<Props, OwnState> {
 
 		API.onBlockCreate(b => this.addNodeForBlock(b));
 		API.onBlockChange(b => {
+			// TODO: Update block
 			console.log(b);
 		});
 		API.onBlockMove(b => {
@@ -177,22 +182,23 @@ class App extends React.Component<Props, OwnState> {
 			this.forceUpdate();
 		});
 
-		API.onEvalResults((id, blockRes) => {
-			console.log('New results available: ' + id);
+		API.onNewResult((id, blockRes) => {
+			// Add the result id to our cache
+			this.setState({
+				results: {
+					...this.state.results,
+					[id]: {}
+				}
+			});
+
 			// If we're in play mode then we always want to show new results
 			// as soon as they become available, so fetch all new data
 			if (this.state.playing) {
 				Object.keys(blockRes).forEach(blockId => {
-					const block = this.state.blocks.find(
-						b => b.id === blockId
-					) as BaseNodeModel;
+					const block = this.state.blocks[blockId];
 					// We get the data for all visual blocks and all blocks with errors
 					if (!blockRes[blockId] || block instanceof VisualNodeModel) {
-						API.getResults(id, block.id, (err, out) => {
-							block.err = err;
-							block.out = out;
-							this.forceUpdate();
-						});
+						this.showResult(id, block);
 					} else {
 						block.err = null;
 						block.out = null;
@@ -242,10 +248,12 @@ class App extends React.Component<Props, OwnState> {
 		});
 
 		this.model.addNode(node);
-		this.setState(prevState => ({
-			blocks: prevState.blocks.concat(node)
-		}));
-		// this.forceUpdate();
+		this.setState({
+			blocks: {
+				...this.state.blocks,
+				[b.id]: node
+			}
+		});
 		return node;
 	}
 
@@ -260,23 +268,46 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
+		// Eval all blocks
 		API.evalAllBlocks((id, blockRes) => {
 			// Grab the results for each block
 			Object.keys(blockRes).forEach(blockId => {
-				const block = this.state.blocks.find(
-					b => b.id === blockId
-				) as BaseNodeModel;
+				const block = this.state.blocks[blockId];
 				// We get the data for all visual blocks and all blocks with errors
 				if (!blockRes[block.id] || block instanceof VisualNodeModel) {
-					API.getResults(id, block.id, (err, out) => {
-						console.log(block.id, err);
-						block.err = err;
-						block.out = out;
-						this.forceUpdate();
-					});
+					this.showResult(id, block);
 				} else {
 					block.err = null;
 					block.out = null;
+				}
+			});
+		});
+	}
+
+	// Show the specified results for the specified block
+	// This adds the results either from the cache or from the server to the block
+	showResult(id: string, block: BaseNodeModel) {
+		// Check our cache first
+		if (this.state.results[id] && this.state.results[id][block.id]) {
+			const res = this.state.results[id][block.id];
+			block.err = res[0];
+			block.out = res[1];
+			this.forceUpdate();
+			return;
+		}
+
+		// Fetch from server
+		API.getResult(id, block.id, (err, out) => {
+			block.err = err;
+			block.out = out;
+			// Save the results in our cache
+			this.setState({
+				results: {
+					...this.state.results,
+					[id]: {
+						...this.state.results[id],
+						[block.id]: [err, out]
+					}
 				}
 			});
 		});
@@ -306,14 +337,6 @@ class App extends React.Component<Props, OwnState> {
 			<>
 				<AppBar title="MaDDNA" position="static" color="default">
 					<Toolbar variant="dense">
-						<IconButton
-							color="inherit"
-							aria-label="Menu"
-							style={{ marginLeft: -18 }}
-							onClick={() => this.toggleMenu()}
-						>
-							<MenuIcon />
-						</IconButton>
 						<Typography variant="title" color="inherit" style={{ flex: 1 }}>
 							MaDNNA
 						</Typography>
@@ -366,7 +389,15 @@ class App extends React.Component<Props, OwnState> {
 							/>
 						)}
 				</div>
-				<Drawer open={menu} onClose={() => this.toggleMenu()}>
+				<Button
+					variant="fab"
+					color="secondary"
+					style={{ position: 'fixed', bottom: '2em', right: '2em' }}
+					onClick={e => this.setState({ menu: true })}
+				>
+					<AddIcon />
+				</Button>
+				<Drawer open={menu} onClose={() => this.toggleMenu()} anchor="right">
 					<div style={{ width: 280, overflowX: 'hidden' }}>
 						<List dense>
 							<ListSubheader component="div" disableSticky>

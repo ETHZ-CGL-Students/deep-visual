@@ -21,10 +21,17 @@ export type PortRenameListener = (
 
 export type LinkListener = (link: Link) => void;
 
-export type EvalListener = (
+export type ResultListener = (
 	id: string,
 	blocks: { [x: string]: boolean }
 ) => void;
+
+export type DataResponse = {
+	blocks: Block[];
+	links: Link[];
+	vars: Variable[];
+	results: string[];
+};
 
 class API {
 	connect: Listener[] = [];
@@ -47,7 +54,7 @@ class API {
 	linkCreate: LinkListener[] = [];
 	linkDelete: LinkListener[] = [];
 
-	evalResult: EvalListener[] = [];
+	newResult: ResultListener[] = [];
 
 	connected = false;
 
@@ -87,8 +94,8 @@ class API {
 		socket.on('block_delete', (block: Block) =>
 			this.blockDelete.forEach(l => l(block))
 		);
-		socket.on('eval_results', (data: any) =>
-			this.evalResult.forEach(l => l(data.id, data.blocks))
+		socket.on('result_new', (data: any) =>
+			this.newResult.forEach(l => l(data.id, data.blocks))
 		);
 
 		socket.on('port_create', ({ id, port }: { id: string; port: string }) =>
@@ -159,19 +166,11 @@ class API {
 	}
 
 	// Eval
-	onEvalResults(listener: EvalListener) {
-		this.evalResult.push(listener);
+	onNewResult(listener: ResultListener) {
+		this.newResult.push(listener);
 	}
 
-	getData(
-		callback: (
-			{
-				blocks,
-				links,
-				vars
-			}: { blocks: Block[]; links: Link[]; vars: Variable[] }
-		) => void
-	) {
+	getData(callback: ({ blocks, links, vars, results }: DataResponse) => void) {
 		socket.emit('data', callback);
 	}
 
@@ -225,12 +224,12 @@ class API {
 		socket.emit('link_delete', { id });
 	}
 
-	getResults(
+	getResult(
 		id: string,
 		blockId: string,
 		callback: (err: string | null, out: any) => void
 	) {
-		socket.emit('eval_get', { id, blockId }, (data: any) => {
+		socket.emit('result_get', { id, blockId }, (data: any) => {
 			if (data instanceof ArrayBuffer) {
 				callback(null, readMatrixFromBuffer(data));
 			} else {

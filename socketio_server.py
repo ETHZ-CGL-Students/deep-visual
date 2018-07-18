@@ -438,17 +438,18 @@ def disconnect():
 
 # Get all data (blocks, links and variables)
 @sio.on('data')
-def getData():
+def get_data():
     return {
         'blocks': blocks,
         'links': links,
-        'vars': list(map(lambda kv: Variable(kv[0], kv[1]), vars.items()))
+        'vars': list(map(lambda kv: Variable(kv[0], kv[1]), vars.items())),
+        'results': list(results.keys())
     }
 
 
 # Creating a new block
 @sio.on('block_create')
-def addBlock(data):
+def add_block(data):
     t = data['type']
     newBlock = None
 
@@ -468,7 +469,7 @@ def addBlock(data):
 
 # Edit code of a block
 @sio.on('block_change')
-def editBlock(data):
+def edit_block(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         return
@@ -482,7 +483,7 @@ def editBlock(data):
 
 # Move block around
 @sio.on('block_move')
-def moveBlock(data):
+def move_block(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         return
@@ -495,7 +496,7 @@ def moveBlock(data):
 
 # Deleting blocks
 @sio.on('block_delete')
-def deleteBlock(data):
+def delete_block(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         print('block_delete: Could not find block ' + data['id'])
@@ -525,7 +526,7 @@ def deleteBlock(data):
 
 
 # Eval an array of blocks, building the execution tree required
-def evalBlocks(blocks):
+def eval_blocks(blocks):
     global results
 
     # Build our execution tree
@@ -598,7 +599,7 @@ def evalBlocks(blocks):
     }
 
     # Inform all clients about the exection
-    sio.emit('eval_results', data=res)
+    sio.emit('result_new', data=res)
 
     # Return the id to the client so it can get the results
     return res
@@ -606,15 +607,15 @@ def evalBlocks(blocks):
 
 # Evaluate all (visual) blocks
 @sio.on('block_eval_all')
-def evalAllBlocks():
+def eval_all_blocks():
     print('Eval all')
 
-    return evalBlocks([b for b in blocks if isinstance(b, VisualBlock)])
+    return eval_blocks([b for b in blocks if isinstance(b, VisualBlock)])
 
 
 # Evaluating a block (="running")
 @sio.on('block_eval')
-def evalBlock(data):
+def eval_block(data):
     # Find the code block by id
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
@@ -626,7 +627,7 @@ def evalBlock(data):
     print('Eval: ' + block.id)
 
     # Run the evaluation for our one block
-    res = evalBlocks([block])
+    res = eval_blocks([block])
 
     # Get the output for the block we ran the eval socket.io event
     data = results[res['id']][block.id]
@@ -643,8 +644,8 @@ def evalBlock(data):
 
 
 # Getting the results of a certain execution for a certain block
-@sio.on('eval_get')
-def getEval(data):
+@sio.on('result_get')
+def get_result(data):
     if data['id'] not in results:
         return ['Invalid execution']
 
@@ -675,7 +676,7 @@ def getEval(data):
 
 # Creating a port
 @sio.on('port_create')
-def createPort(data):
+def create_port(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         print('port_create: Invalid block id ' + data['id'])
@@ -699,7 +700,7 @@ def createPort(data):
 
 # Renaming a port
 @sio.on('port_rename')
-def renamePort(data):
+def rename_port(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         print('port_rename: Invalid block id ' + data['id'])
@@ -729,7 +730,7 @@ def renamePort(data):
 # Deleting a port
 # TODO: Clean up the links that this port had
 @sio.on('port_delete')
-def deletePort(data):
+def delete_port(data):
     block = next((b for b in blocks if b.id == data['id']), None)
     if block is None:
         print('port_delete: Invalid block id ' + data['id'])
@@ -747,7 +748,7 @@ def deletePort(data):
 
 # Connecting blocks together
 @sio.on('link_create')
-def createLink(data):
+def create_link(data):
     fromBlock = next((b for b in blocks if b.id == data['fromId']), None)
     if fromBlock is None:
         print('link_create: Invalid block id ' + data['fromId'])
@@ -789,7 +790,7 @@ def createLink(data):
 
 # Disconnecting blocks
 @sio.on('link_delete')
-def deleteLink(data):
+def delete_link(data):
     global links
 
     # Find link
