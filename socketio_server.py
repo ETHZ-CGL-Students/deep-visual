@@ -124,6 +124,9 @@ def stdoutIO(stdout=None):
 def serialize_matrix(mat):
     """ Serialize a matrix to an array of bytes: [nDims] [dim1, dim2, ...] [values]"""
 
+    if np.isscalar(mat):
+        mat = np.array([mat])
+
     if mat is None or len(mat) == 0:
         return (0).to_bytes(4, 'little')
 
