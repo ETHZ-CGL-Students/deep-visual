@@ -40,7 +40,8 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 	}
 
 	onDataUpdate(defs: InteractionProps) {
-		let newData = PlotlyConfig.metadataForChart(this.props.chartName, this.props.node.out, defs.updated_src);
+		let [error, newData] = PlotlyConfig.metadataForChart(this.props.chartName, this.props.node.out, defs.updated_src);
+		this.props.node.err = error;
 		this.props.onUpdate(newData, null, null, this.props.chartName);
 	}
 
@@ -58,26 +59,10 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 	}
 
 	handleSelectChart(chartName: any) {
-		this.setState({chartName: chartName});
 		let [error, newData] = PlotlyConfig.metadataForChart(chartName, this.props.node.out);
 		this.props.node.err = error;
 		let newLayout = PlotlyConfig.layoutForChart(chartName, this.props.node.out);
-		this.props.onUpdate(newData, newLayout, null, this.props.chartName);
-	}
-
-	static cleanData (originalData: any[]) {
-		let data: any[] = [];
-		if (!originalData) {
-			return [];
-		}
-		originalData.forEach((d) => {
-			let nd = {...d};
-			let dataKey = nd._dataKey;
-			nd[dataKey] = 'data';
-			// delete nd._dataDim;
-			data.push(nd);
-		});
-		return data;
+		this.props.onUpdate(newData, newLayout, null, chartName);
 	}
 
 	render() {
@@ -182,7 +167,7 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 						*/}
 						<div style={{display: this.state.tab === 0 ? 'block' : 'none', marginTop: 15}}>
 							<ReactJson
-								src={VisualConfigurator.cleanData(this.props.data)}
+								src={this.props.data}
 								theme="monokai"
 								name={false}
 								onEdit={(def: any) => this.onDataUpdate(def)}
