@@ -17,6 +17,7 @@ export class VisualNodeFactory extends AbstractNodeFactory<VisualNodeModel> {
 			node: node,
 			diagramEngine: diagramEngine,
 			canEval: true,
+			canEditInPorts: true,
 			hideRawData: true
 		});
 	}
