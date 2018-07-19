@@ -140,7 +140,7 @@ def serialize_matrix(mat):
 
     # Then write the bytes of the matrix. This is similar to 'tobytes()'
     # See https://docs.scipy.org/doc/numpy-1.14.0/reference/generated/numpy.ndarray.tostring.html
-    str += mat.tostring()
+    str += mat.astype(np.float32).tostring()
     return str
 
 

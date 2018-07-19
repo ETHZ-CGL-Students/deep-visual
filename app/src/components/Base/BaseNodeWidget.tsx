@@ -14,7 +14,8 @@ import { BasePortModel } from './BasePortModel';
 export interface BaseNodeProps extends BaseWidgetProps {
 	node: BaseNodeModel;
 	diagramEngine: DiagramEngine;
-	canEditPorts?: boolean;
+	canEditInPorts?: boolean;
+	canEditOutPorts?: boolean;
 	canEval?: boolean;
 	hideRawData?: boolean;
 }
@@ -38,7 +39,8 @@ export class BaseNodeWidget<
 				key={port.id}
 				model={port}
 				onDelete={
-					this.props.canEditPorts ? () => this.deletePort(port) : undefined
+					(port.in && this.props.canEditInPorts || !port.in && this.props.canEditOutPorts) ?
+						() => this.deletePort(port) : undefined
 				}
 			/>
 		);
@@ -64,7 +66,7 @@ export class BaseNodeWidget<
 	}
 
 	render() {
-		const { node, canEval, canEditPorts, hideRawData } = this.props;
+		const { node, canEval, canEditInPorts, canEditOutPorts, hideRawData } = this.props;
 
 		const content = this.renderContent();
 
@@ -82,7 +84,7 @@ export class BaseNodeWidget<
 				<div className={this.bem('__ports')}>
 					<div className={this.bem('__in')}>
 						{node.getInPorts().map(p => this.generatePort(p))}
-						{canEditPorts && (
+						{canEditInPorts && (
 							<div style={{ display: 'flex', marginTop: 2, paddingLeft: 1 }}>
 								<a className="round-button" onClick={() => this.addPort(true)}>
 									＋
@@ -92,7 +94,7 @@ export class BaseNodeWidget<
 					</div>
 					<div className={this.bem('__out')}>
 						{node.getOutPorts().map(p => this.generatePort(p))}
-						{this.props.canEditPorts && (
+						{canEditOutPorts && (
 							<div
 								style={{
 									display: 'flex',

@@ -35,8 +35,6 @@ export class PlotlyConfig {
 		}
 		let t = nj.array(tensor);
 		if (t.shape.length === data._dataDim) {
-			// data[data._dataKey] = tensor;
-			delete data[data._dataKey];
 			return [null, [data]];
 		} else {
 			return [`Chart ${chartName} requires ${data._dataDim} dimensions but input data is of shape ${t.shape}`, [data]];
@@ -44,9 +42,13 @@ export class PlotlyConfig {
 	}
 
 	static fullDataForChart(metadata: any[], tensor: any) {
-		let result = metadata.slice(0); // copy
-		result.forEach((d) => {
-			d[d._dataKey] = tensor;
+		let result: any[] = [];
+		metadata.forEach((d) => {
+			d = {...d}; // copy
+			if (d._dataKey) {
+				d[d._dataKey] = tensor;
+			}
+			result.push(d);
 		});
 		return result;
 	}

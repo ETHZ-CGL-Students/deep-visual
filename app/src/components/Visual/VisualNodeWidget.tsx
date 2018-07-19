@@ -55,7 +55,8 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			this.props.node.err = error;
 			this.setState({
 				data: data,
-				layout: this.state.layout || defaultLayout
+				layout: this.state.layout || defaultLayout,
+				chartName: this.state.chartName || defaultChart
 			});
 		}
 	}
@@ -64,25 +65,11 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		event.stopPropagation();
 	}
 
-	// onInitialized(plotDef: any, e: any) {
-	// 	let data = plotDef.data;
-	// 	delete data.z;
-	// 	this.setState({
-	// 		layout: plotDef.layout,
-	// 		data: data,
-	// 		chartName: data[0].type
-	// 	});
-	// }
-
 	openStyleEditor() {
 		this.setState({editorOpen: true});
 	}
 
 	updatePlotlyDefs(data: any[]|null, layout: any|null, code: string|null, chartName: string) {
-		if (code) {
-			this.props.node.changeCode(code);
-			this.props.node.eval();
-		}
 		let update: any = {};
 		if (data) {
 			/* tslint:disable: no-string-literal */
@@ -95,7 +82,12 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		/* tslint:disable: no-string-literal */
 		update['chartName'] = chartName;
 		this.shouldRenderPlot = true;
-		this.setState(update);
+		this.setState(update, () => {
+			if (code) {
+				this.props.node.changeCode(code);
+				this.props.node.eval();
+			}
+		});
 	}
 
 	getInputShape() {
@@ -138,7 +130,6 @@ export class VisualNodeWidget extends BaseNodeWidget<
 					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
 					onClick={(e: any) => console.log(e)}
-					// onInitialized={(a: any, e: any) => this.onInitialized(a, e)}
 				/>
 			);
 		}
