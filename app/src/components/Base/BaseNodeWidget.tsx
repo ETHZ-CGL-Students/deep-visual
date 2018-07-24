@@ -75,7 +75,7 @@ export class BaseNodeWidget<
 				{...this.getProps()}
 				style={{
 					background: tinycolor(node.color).setAlpha(0.8),
-					maxWidth: 600
+					maxWidth: 300
 				}}
 			>
 				<div className={this.bem('__title')}>
