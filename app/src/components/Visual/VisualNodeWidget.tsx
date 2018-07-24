@@ -15,7 +15,12 @@ export interface VisualNodeWidgetProps extends BaseNodeProps {
 	node: VisualNodeModel;
 }
 
-export interface VisualNodeWidgetState {}
+export interface VisualNodeWidgetState {
+	editorOpen: boolean;
+	chartName?: string;
+	layout?: any;
+	data?: any;
+}
 
 export class VisualNodeWidget extends BaseNodeWidget<
 	VisualNodeWidgetProps,
@@ -25,12 +30,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	currentEvalId: string;
 	shouldRenderPlot: boolean;
 	plot: any;
-	state: {
-		editorOpen: boolean,
-		chartName?: string,
-		layout?: any,
-		data?: any
-	};
+	state: VisualNodeWidgetState;
 	constructor(props: VisualNodeWidgetProps) {
 		super(props);
 		this.shouldRenderPlot = false;
@@ -41,24 +41,24 @@ export class VisualNodeWidget extends BaseNodeWidget<
 
 	}
 
-	componentDidUpdate(prevProps: any, prevState: any, snapshot: any) {
-		if (this.currentEvalId !== this.props.node.evalId) {
-			let defaultChart = PlotlyConfig.recommendedChartForTensor(this.props.node.out);
-			let defaultLayout = PlotlyConfig.layoutForChart(this.state.chartName || defaultChart, this.props.node.out);
-			this.currentEvalId = this.props.node.evalId;
-			this.shouldRenderPlot = true;
+	static getDerivedStateFromProps(props: VisualNodeWidgetProps, state: VisualNodeWidgetState) {
+		if (!state.data && props.node.out) {
+			console.log('Derived');
+			let defaultChart = PlotlyConfig.recommendedChartForTensor(props.node.out);
+			let defaultLayout = PlotlyConfig.layoutForChart(state.chartName || defaultChart, props.node.out);
 			let [error, data] = PlotlyConfig.metadataForChart(
-				this.state.chartName || defaultChart,
-				this.props.node.out,
-				this.state.data
+				state.chartName || defaultChart,
+				props.node.out,
+				state.data
 			);
-			this.props.node.err = error;
-			this.setState({
+			props.node.err = error;
+			return {
 				data: data,
-				layout: this.state.layout || defaultLayout,
-				chartName: this.state.chartName || defaultChart
-			});
+				layout: state.layout || defaultLayout,
+				chartName: state.chartName || defaultChart
+			};
 		}
+		return null;
 	}
 
 	onMouseDown(event: any) {
@@ -122,14 +122,17 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			return null;
 		}
 
+		let shouldRender = this.shouldRenderPlot || (this.currentEvalId !== this.props.node.evalId);
+
 		// React plot should be updated only on specific cases, controlled by shouldRenderPlot
-		if (this.shouldRenderPlot) {
+		if (this.props.node.out && shouldRender) {
 			this.shouldRenderPlot = false;
+			this.currentEvalId = this.props.node.evalId;
 			this.plot = (
 				<Plot
 					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
-					onClick={(e: any) => console.log(e)}
+					// onClick={(e: any) => console.log(e)}
 				/>
 			);
 		}

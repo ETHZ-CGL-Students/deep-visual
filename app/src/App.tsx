@@ -49,7 +49,6 @@ interface OwnState {
 	loading: boolean;
 	blocks: { [x: string]: BaseNodeModel };
 	vars: Variable[];
-	results: { [x: string]: { [x: string]: [any, any] } };
 	epochProgress: number;
 	batchProgress: number;
 	menu: boolean;
@@ -62,16 +61,18 @@ class App extends React.Component<Props, OwnState> {
 	engine: DiagramEngine;
 	model: DiagramModel;
 	playInterval: any;
+	results: { [x: string]: { [x: string]: [any, any] } };
 
 	constructor(props: Props) {
 		super(props);
 		this.playInterval = null;
+		this.results = {};
 		this.state = {
 			connected: false,
 			loading: true,
 			blocks: {},
 			vars: [],
-			results: {},
+			tensors: [],
 			epochProgress: 0,
 			batchProgress: 0,
 			menu: false,
@@ -136,15 +137,14 @@ class App extends React.Component<Props, OwnState> {
 			results: {},
 			vars: []
 		});
-
+		this.results = {};
 		this.model = new DiagramModel();
 		this.model.nodes = {};
 		this.model.links = {};
 		this.engine.setDiagramModel(this.model);
 
-		API.getData((blocks, links, vars, results) => {
-			const res = {};
-			results.forEach(r => (res[r] = {}));
+		API.getData((blocks, links, vars, tensors, results) => {
+			results.forEach(r => (this.results[r] = {}));
 
 			vars.sort((a, b) => a.name.localeCompare(b.name));
 			this.setState({
@@ -290,32 +290,29 @@ class App extends React.Component<Props, OwnState> {
 	// Get specified results for the specified block
 	// This adds the results either from the cache or from the server to the block
 	getResult(evalId: string, block: BaseNodeModel) {
-		block.running = false;
-		block.evalId = evalId;
 
 		// Check our cache first
-		if (this.state.results[evalId] && this.state.results[evalId][block.id]) {
-			const res = this.state.results[evalId][block.id];
+		if (this.results[evalId] && this.results[evalId][block.id]) {
+			const res = this.results[evalId][block.id];
 			block.err = res[0];
 			block.out = res[1];
-			this.forceUpdate();
-			return;
+			block.evalId = evalId;
+			block.running = false;
+			return this.forceUpdate();
 		}
 
 		// Fetch from server
 		API.getResult(evalId, block.id, (err, out) => {
 			block.err = err;
 			block.out = out;
+			block.evalId = evalId;
+			block.running = false;
 			// Save the results in our cache
-			this.setState({
-				results: {
-					...this.state.results,
-					[evalId]: {
-						...this.state.results[evalId],
-						[block.id]: [err, out]
-					}
-				}
-			});
+			if (!this.results[evalId]) {
+				this.results[evalId] = {};
+			}
+			this.results[evalId][block.id] = [err, out];
+			this.forceUpdate();
 		});
 	}
 
