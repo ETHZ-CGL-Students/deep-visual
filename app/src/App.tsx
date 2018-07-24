@@ -255,6 +255,11 @@ class App extends React.Component<Props, OwnState> {
 	}
 
 	evalAll() {
+		Object.values(this.state.blocks).forEach((block) => {
+			if (block instanceof VisualNodeModel) {
+				block.running = true;
+			}
+		});
 		API.evalAllBlocks();
 	}
 
