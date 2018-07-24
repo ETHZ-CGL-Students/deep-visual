@@ -14,7 +14,7 @@ export class PlotlyConfig {
 
 	static recommendedChartForTensor(tensor: any) {
 		if (!tensor) {
-			return 'Heatmap';
+			return 'heatmap';
 		}
 		let t = nj.array(tensor);
 		if (t.shape.length === 1 && t.shape[0] < 100) {
