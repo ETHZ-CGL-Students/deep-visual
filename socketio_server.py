@@ -22,6 +22,9 @@ from keras.layers import Input, InputLayer
 from keras.optimizers import RMSprop
 from keras.callbacks import Callback
 
+from deepexplain.tensorflow import DeepExplain
+
+
 eventlet.monkey_patch(socket=True)
 
 
@@ -292,6 +295,12 @@ class LayerBlock(Block):
             eval_result.update({'output': None})
             return eval_result
 
+        eval_result.update({
+            "output_ts": self.layer.output,
+        })
+
+        tensors[self.layer.input.name][1] = x
+
         with self.layer.output.graph.as_default():
             layerFunc = K.function(
                 [self.layer.input] + [K.learning_phase()], [self.layer.output])
@@ -350,6 +359,51 @@ class VisualBlock(CodeBlock):
         return json
 
 
+class ExplainBlock(CodeBlock):
+    """
+    An block used to generate attribution maps.
+    Use https://github.com/marcoancona/DeepExplain/ to generate explanations.
+    """
+
+    def __init__(self, data=None):
+        super(ExplainBlock, self).__init__(data=data)
+        self.inputs = OrderedDict([
+            ('target', None)
+        ])
+        self.outputs = OrderedDict([
+            ('explanation', [])
+        ])
+        self.inputTensorName = list(tensors.keys())[0] if len(tensors.keys()) > 0 else ''
+
+        self.code = """
+with DeepExplain(session=K.get_session()) as de:
+    explanation = de.explain('intgrad', __target_ts, __input_ts, __input_data, steps=10)
+"""
+
+    def to_json(self):
+        """ This is called by our custom json serializer """
+
+        json = super(ExplainBlock, self).to_json()
+        json['class'] = 'ExplainBlock'
+        json['inputTensorName'] = self.inputTensorName
+        return json
+
+    # def eval(self, gs, context):
+    #     input_ts = context['__input_ts']
+    #     target_ts = context['__target_ts']
+    #     input_data = context['__input_data']
+    #
+    #     gradient = K.gradients(target_ts, input_ts)[0]
+    #
+    #     eval_result = {}
+    #     with target_ts.graph.as_default():
+    #         layerFunc = K.function(
+    #             [input_ts] + [K.learning_phase()], [gradient])
+    #         eval_result.update({'explanation': layerFunc(inputs=[input_data])[0]})
+    #         return eval_result
+
+
+
 # Exposed variables
 vars = {}
 # Blocks of code
@@ -358,6 +412,8 @@ blocks = []
 links = []
 # Cached execution results
 results = {}
+# Tensors (names)
+tensors = OrderedDict()
 
 
 def save_data():
@@ -382,6 +438,8 @@ def parse_data_object(d):
             name=d['name'], value=vars[d['name']], x=d['x'], y=d['y'])
     elif c == 'VisualBlock':
         return VisualBlock(data=d)
+    elif c == 'ExplainBlock':
+        return ExplainBlock(data=d)
 
     return d
 
@@ -442,6 +500,7 @@ def get_data():
         'blocks': blocks,
         'links': links,
         'vars': list(map(lambda kv: Variable(kv[0], kv[1]), vars.items())),
+        'tensors': list(tensors.keys()),
         'results': list(results.keys())
     }
 
@@ -458,6 +517,8 @@ def add_block(data):
         newBlock = VariableBlock(name=data['var'], value=vars[data['var']])
     elif t == 'visual':
         newBlock = VisualBlock()
+    elif t == 'explain':
+        newBlock = ExplainBlock()
 
     if newBlock is not None:
         blocks.append(newBlock)
@@ -475,6 +536,9 @@ def edit_block(data):
 
     if isinstance(block, CodeBlock) and 'code' in data:
         block.code = data['code']
+
+    if isinstance(block, ExplainBlock) and 'input_ts' in data:
+        block.inputTensorName = data['input_ts']
 
     sio.emit('block_change', data=block)
     save_data()
@@ -556,11 +620,11 @@ def eval_blocks(blocks):
 
     # Save our globals, they will be exposed to the block eval
     gs = globals()
-
     # Traverse the blocks
     for b in bs:
         # Collect inputs for this block
         context = {}
+
 
         # Set inputs from links
         skip = False
@@ -574,6 +638,12 @@ def eval_blocks(blocks):
                     break
                 # Otherwise set the input to the output of that block
                 context[k] = outs[l.fromBlock.id][1][l.fromPort]
+                if isinstance(b, ExplainBlock):
+                    if l.toPort == 'target':
+                        context["__target_ts"] = outs[l.fromBlock.id][1][l.fromPort+'_ts']
+                        context["__input_ts"] = tensors[b.inputTensorName][0]
+                        context["__input_data"] = tensors[b.inputTensorName][1]
+
 
         # If one of our inputs had an error then we just skip this block
         if skip is True:
@@ -589,10 +659,10 @@ def eval_blocks(blocks):
                 # Save any error
                 out = [tb.format_exc(), None]
 
-            # Print statements to console. We could also return them or something...
-            text = s.getvalue()
-            if len(text) > 0:
-                print(b.id + ': ' + text)
+        # Print statements to console. We could also return them or something...
+        text = s.getvalue()
+        if len(text) > 0:
+            print(b.id + ': ' + text)
 
         # Save the output ports of our execution
         outs[b.id] = out
@@ -854,7 +924,8 @@ def expose_model(model):
     # Add all layers as blocks
     i = 0
     for layer in model.layers:
-        blocks.append(LayerBlock(layer, x=i * 150))
+        blocks.append(LayerBlock(layer, x=i * 200))
+        tensors.update({layer.input.name: [layer.input, None]})
         i += 1
 
     # Link the layers 'prev' and 'next'

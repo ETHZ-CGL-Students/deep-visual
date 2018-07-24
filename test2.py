@@ -18,7 +18,7 @@ from socketio_server import expose_model, expose_variables, start, FitCallback
 # else:
 batch_size = 256
 num_classes = 10
-epochs = 20
+epochs = 10
 
 # the data, split between train and test sets
 (x_train, y_train), (x_test, y_test) = mnist.load_data()

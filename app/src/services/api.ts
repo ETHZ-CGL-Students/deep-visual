@@ -30,6 +30,7 @@ export type DataCallback = (
 	blocks: Block[],
 	links: Link[],
 	vars: Variable[],
+	tensors: string[],
 	results: string[]
 ) => void;
 
@@ -172,12 +173,12 @@ class API {
 
 	getData(callback: DataCallback) {
 		socket.emit('data', (data: any) => {
-			return callback(data.blocks, data.links, data.vars, data.results);
+			return callback(data.blocks, data.links, data.vars, data.tensors, data.results);
 		});
 	}
 
 	createBlock(args: {
-		type: 'code' | 'var' | 'visual';
+		type: 'code' | 'var' | 'visual' | 'explain';
 		code?: string;
 		var?: string;
 	}) {

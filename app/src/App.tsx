@@ -31,6 +31,8 @@ import { BaseNodeModel } from './components/Base/BaseNodeModel';
 import { BasePortModel } from './components/Base/BasePortModel';
 import { CodeNodeFactory } from './components/Code/CodeNodeFactory';
 import { CodeNodeModel } from './components/Code/CodeNodeModel';
+import { ExplainNodeFactory } from './components/Explain/ExplainNodeFactory';
+import { ExplainNodeModel } from './components/Explain/ExplainNodeModel';
 import { LayerNodeFactory } from './components/Layer/LayerNodeFactory';
 import { LayerNodeModel } from './components/Layer/LayerNodeModel';
 import { VariableNodeFactory } from './components/Variable/VariableNodeFactory';
@@ -38,7 +40,7 @@ import { VariableNodeModel } from './components/Variable/VariableNodeModel';
 import { VisualNodeFactory } from './components/Visual/VisualNodeFactory';
 import { VisualNodeModel } from './components/Visual/VisualNodeModel';
 import API from './services/api';
-import { Block, isCode, isLayer, isVar, isVisual, Variable } from './types';
+import { Block, isCode, isExplain, isLayer, isVar, isVisual, Variable } from './types';
 
 const debounce = require('lodash.debounce');
 
@@ -49,6 +51,7 @@ interface OwnState {
 	loading: boolean;
 	blocks: { [x: string]: BaseNodeModel };
 	vars: Variable[];
+	tensors: string[];
 	epochProgress: number;
 	batchProgress: number;
 	menu: boolean;
@@ -88,6 +91,7 @@ class App extends React.Component<Props, OwnState> {
 		this.engine.registerNodeFactory(new LayerNodeFactory());
 		this.engine.registerNodeFactory(new VariableNodeFactory());
 		this.engine.registerNodeFactory(new VisualNodeFactory());
+		this.engine.registerNodeFactory(new ExplainNodeFactory());
 		this.engine.installDefaultFactories();
 		this.engine.setDiagramModel(this.model);
 
@@ -134,8 +138,8 @@ class App extends React.Component<Props, OwnState> {
 	getData() {
 		this.setState({
 			blocks: {},
-			results: {},
-			vars: []
+			vars: [],
+			tensors: []
 		});
 		this.results = {};
 		this.model = new DiagramModel();
@@ -149,7 +153,7 @@ class App extends React.Component<Props, OwnState> {
 			vars.sort((a, b) => a.name.localeCompare(b.name));
 			this.setState({
 				vars,
-				results: res,
+				tensors,
 				loading: false
 			});
 
@@ -215,6 +219,8 @@ class App extends React.Component<Props, OwnState> {
 			_node.onChange(() => {
 				API.changeBlock(b.id, _node.code);
 			});
+		} else if (isExplain(b)) {
+			_node = new ExplainNodeModel(b, this.state.tensors);
 		}
 
 		const node = _node as BaseNodeModel;
@@ -249,6 +255,9 @@ class App extends React.Component<Props, OwnState> {
 	}
 	addVisualBlock() {
 		API.createBlock({ type: 'visual' });
+	}
+	addExplainBlock() {
+		API.createBlock({ type: 'explain' });
 	}
 	addVariableBlock(name: string) {
 		API.createBlock({ type: 'var', var: name });
@@ -411,6 +420,9 @@ class App extends React.Component<Props, OwnState> {
 							</ListItem>
 							<ListItem button onClick={() => this.addVisualBlock()}>
 								<ListItemText primary="Visual" secondary="Visualize data" />
+							</ListItem>
+							<ListItem button onClick={() => this.addExplainBlock()}>
+								<ListItemText primary="Explain" secondary="Generate attribution maps" />
 							</ListItem>
 						</List>
 						<Divider />
