@@ -373,34 +373,28 @@ class ExplainBlock(CodeBlock):
         self.outputs = OrderedDict([
             ('explanation', [])
         ])
-        self.inputTensorName = list(tensors.keys())[0] if len(tensors.keys()) > 0 else ''
+        if not hasattr(self, 'inputTensor'):
+            self.inputTensor = list(tensors.keys())[0] if len(tensors.keys()) > 0 else ''
+        if not hasattr(self, 'targetSlice'):
+            self.targetSlice = '[:]'
 
-        self.code = """
+        self.codeTemplate = """
+print()
 with DeepExplain(session=K.get_session()) as de:
-    explanation = de.explain('intgrad', __target_ts, __input_ts, __input_data, steps=10)
+    explanation = de.explain('intgrad', __target_ts{{slice}}, __input_ts, __input_data, steps=10)
 """
 
     def to_json(self):
         """ This is called by our custom json serializer """
-
         json = super(ExplainBlock, self).to_json()
         json['class'] = 'ExplainBlock'
-        json['inputTensorName'] = self.inputTensorName
+        json['inputTensor'] = self.inputTensor
+        json['targetSlice'] = self.targetSlice
         return json
 
-    # def eval(self, gs, context):
-    #     input_ts = context['__input_ts']
-    #     target_ts = context['__target_ts']
-    #     input_data = context['__input_data']
-    #
-    #     gradient = K.gradients(target_ts, input_ts)[0]
-    #
-    #     eval_result = {}
-    #     with target_ts.graph.as_default():
-    #         layerFunc = K.function(
-    #             [input_ts] + [K.learning_phase()], [gradient])
-    #         eval_result.update({'explanation': layerFunc(inputs=[input_data])[0]})
-    #         return eval_result
+    def eval(self, gs, context):
+        self.code = self.codeTemplate.replace('{{slice}}', self.targetSlice)
+        return super(ExplainBlock, self).eval(gs, context)
 
 
 
@@ -537,8 +531,11 @@ def edit_block(data):
     if isinstance(block, CodeBlock) and 'code' in data:
         block.code = data['code']
 
-    if isinstance(block, ExplainBlock) and 'input_ts' in data:
-        block.inputTensorName = data['input_ts']
+    if isinstance(block, ExplainBlock) and 'inputTensor' in data:
+        block.inputTensor = data['inputTensor']
+
+    if isinstance(block, ExplainBlock) and 'targetSlice' in data:
+        block.targetSlice = data['targetSlice']
 
     sio.emit('block_change', data=block)
     save_data()
@@ -641,8 +638,8 @@ def eval_blocks(blocks):
                 if isinstance(b, ExplainBlock):
                     if l.toPort == 'target':
                         context["__target_ts"] = outs[l.fromBlock.id][1][l.fromPort+'_ts']
-                        context["__input_ts"] = tensors[b.inputTensorName][0]
-                        context["__input_data"] = tensors[b.inputTensorName][1]
+                        context["__input_ts"] = tensors[b.inputTensor][0]
+                        context["__input_data"] = tensors[b.inputTensor][1]
 
 
         # If one of our inputs had an error then we just skip this block

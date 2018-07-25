@@ -208,7 +208,7 @@ class App extends React.Component<Props, OwnState> {
 		if (isCode(b)) {
 			_node = new CodeNodeModel(b);
 			_node.onChange(() => {
-				API.changeBlock(b.id, _node.code);
+				API.changeBlock(b.id, { code: _node.code });
 			});
 		} else if (isVar(b)) {
 			_node = new VariableNodeModel(b);
@@ -217,10 +217,13 @@ class App extends React.Component<Props, OwnState> {
 		} else if (isVisual(b)) {
 			_node = new VisualNodeModel(b);
 			_node.onChange(() => {
-				API.changeBlock(b.id, _node.code);
+				API.changeBlock(b.id, { code: _node.code });
 			});
 		} else if (isExplain(b)) {
 			_node = new ExplainNodeModel(b, this.state.tensors);
+			_node.onChange(() => {
+				API.changeBlock(b.id, { inputTensor: _node.inputTensor, targetSlice: _node.targetSlice });
+			});
 		}
 
 		const node = _node as BaseNodeModel;

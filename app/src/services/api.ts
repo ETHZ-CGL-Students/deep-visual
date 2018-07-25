@@ -184,8 +184,8 @@ class API {
 	}) {
 		socket.emit('block_create', args);
 	}
-	changeBlock(id: string, code: string) {
-		socket.emit('block_change', { id, code });
+	changeBlock(id: string, update: Object) {
+		socket.emit('block_change', {...update, id});
 	}
 	moveBlock(id: string, x: number, y: number) {
 		socket.emit('block_move', { id, x, y });

@@ -44,7 +44,10 @@ export function isVisual(block: Block): block is VisualBlock {
 	return block.class === 'VisualBlock';
 }
 
-export interface ExplainBlock extends CodeBlock {}
+export interface ExplainBlock extends CodeBlock {
+	inputTensor: string;
+	targetSlice: string;
+}
 export function isExplain(block: Block): block is ExplainBlock {
 	return block.class === 'ExplainBlock';
 }
