@@ -143,6 +143,21 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		this.setState({overlayMode: !this.state.overlayMode});
 	}
 
+	setZScale(zMin: string|null, zMax: string|null) {
+		let data = this.state.data;
+		if (data[0] && data[0]._dataKey === 'z') {
+			if (zMin) {
+				data[0].zmin = zMin;
+				data[0].zauto = false;
+			}
+			if (zMax) {
+				data[0].zmax = zMax;
+				data[0].zauto = false;
+			}
+			this.updatePlotlyDefs(data, null, null, this.state.chartName || 'heatmap');
+		}
+	}
+
 	changeColormap(colormap: string) {
 		let data = this.state.data;
 		data[0].colorscale = colormap;
@@ -158,7 +173,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		let shouldRender = this.shouldRenderPlot || (this.currentEvalId !== this.props.node.evalId);
 
 		// React plot should be updated only on specific cases, controlled by shouldRenderPlot
-		if (this.props.node.out && shouldRender) {
+		if (this.props.node.out && shouldRender && !this.props.node.err) {
 			this.shouldRenderPlot = false;
 			this.currentEvalId = this.props.node.evalId;
 			this.plot = (
@@ -175,10 +190,15 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			quickSelection: {
 				padding: 5,
 				display: 'flex',
-				justifyContent: 'space-between'
+				justifyContent: 'space-between',
+				flexWrap: 'wrap'
 			},
 			checkboxLabel: {
 				fontSize: '1.1em'
+			},
+			inputText: {
+				textAlign: 'middle',
+				width: 40
 			}
 		};
 
@@ -190,12 +210,11 @@ export class VisualNodeWidget extends BaseNodeWidget<
 				{this.plot}
 				<div>
 					<button style={{width: '100%'}} onClick={() => this.openStyleEditor()}>Configure</button>
-					<div style={styles.quickSelection}>
+					<div style={styles.quickSelection as any}>
 						<label style={styles.checkboxLabel}>
 							<input
 								style={{verticalAlign: 'middle'}}
 								type="checkbox"
-								name="checkbox-overlay"
 								onChange={() => this.toggleOverlayMode()}
 							/>
 							Overlay mode
@@ -205,6 +224,19 @@ export class VisualNodeWidget extends BaseNodeWidget<
 								<option key={map} value={map}>{map}</option>
 							)}
 						</select>
+						<div>
+							<input
+								style={styles.inputText as any}
+								placeholder="z-min"
+								onChange={(e) => this.setZScale(e.target.value, null)}
+							/>
+							<input
+								style={styles.inputText as any}
+								placeholder="z-max"
+								onChange={(e) => this.setZScale(null, e.target.value)}
+							/>
+						</div>
+
 					</div>
 
 				</div>
