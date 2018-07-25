@@ -9,23 +9,22 @@ import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
 
-import { BaseNodeProps, BaseNodeWidget } from '../Base/BaseNodeWidget';
+import { BaseNodeProps, BaseNodeState, BaseNodeWidget } from '../Base/BaseNodeWidget';
 import { CodeNodeModel } from '../Code/CodeNodeModel';
 
 export interface CodeNodeWidgetProps extends BaseNodeProps {
 	node: CodeNodeModel;
 }
 
-export interface CodeNodeWidgetState {}
+export interface CodeNodeWidgetState extends BaseNodeState {
+	dialogOpen: boolean;
+	codeEdited: string;
+}
 
 export class CodeNodeWidget extends BaseNodeWidget<
 	CodeNodeWidgetProps,
 	CodeNodeWidgetState
 > {
-	state: {
-		dialogOpen: boolean;
-		codeEdited: string;
-	};
 	constructor(props: CodeNodeWidgetProps) {
 		super(props);
 		this.state = {

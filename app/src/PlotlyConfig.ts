@@ -3,13 +3,14 @@ const nj = require('numjs');
 export class PlotlyConfig {
 	defaultData: {[plotType: string]: any};
 
-	static basicData = {};
+	static basicData = {
+		'colorscale': 'YIGnBu',
+	};
 
 	static basicLayout = {
-		'width': 320,
+		'width': 300,
 		'height': 320,
-		'margin': {t: 0, l: 0, r: 0, b: 0},
-		'colorscale': 'YIGnBu'
+		'margin': {t: 0, l: 0, r: 0, b: 0}
 	};
 
 	static recommendedChartForTensor(tensor: any) {
@@ -59,7 +60,11 @@ export class PlotlyConfig {
 
 	static chartLayout = {
 		'heatmap' : {
-			...PlotlyConfig.basicLayout
+			...PlotlyConfig.basicLayout,
+			'yaxis': {
+				'autorange': 'reversed'
+			},
+			width: 388
 		},
 		'bar' : {
 			...PlotlyConfig.basicLayout,

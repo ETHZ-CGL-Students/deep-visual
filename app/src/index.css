@@ -89,7 +89,7 @@ button {
 }
 
 .srd-default-node {
-    overflow: hidden;
+    overflow: visible;
     border: none;
 }
 
@@ -128,4 +128,24 @@ button {
 
 .code-editor-side .CodeMirror {
     width: 100%;
+}
+
+.overlay-block svg {
+    mix-blend-mode: lighten;
+    z-index: 2;
+    background: transparent !important;
+}
+
+.overlay-block .infolayer {
+    display: none;
+}
+
+select {
+    background: transparent;
+    color: white;
+    border: 1px solid white;
+}
+
+select > option {
+    color: black;
 }

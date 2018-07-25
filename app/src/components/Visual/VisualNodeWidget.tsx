@@ -6,20 +6,41 @@ const Plot = require('react-plotly.js');
 // import ReactJson, { InteractionProps } from 'react-json-view';
 
 import { PlotlyConfig } from '../../PlotlyConfig';
-import { BaseNodeProps, BaseNodeWidget } from '../Base/BaseNodeWidget';
+import { BaseNodeProps, BaseNodeState, BaseNodeWidget } from '../Base/BaseNodeWidget';
 
 import VisualConfigurator from './VisualConfigurator';
 import { VisualNodeModel } from './VisualNodeModel';
+
+const COLORMAPS = [
+	'Blackbody',
+	'Bluered',
+	'Blues',
+	'Earth',
+	'Electric',
+	'Greens',
+	'Greys',
+	'Hot',
+	'Jet',
+	'Picnic',
+	'Portland',
+	'Rainbow',
+	'RdBu',
+	'Reds',
+	'Viridis',
+	'YlGnBu',
+	'YlOrRd'
+];
 
 export interface VisualNodeWidgetProps extends BaseNodeProps {
 	node: VisualNodeModel;
 }
 
-export interface VisualNodeWidgetState {
+export interface VisualNodeWidgetState extends BaseNodeState {
 	editorOpen: boolean;
 	chartName?: string;
 	layout?: any;
 	data?: any;
+	overlayMode: boolean;
 }
 
 export class VisualNodeWidget extends BaseNodeWidget<
@@ -31,14 +52,16 @@ export class VisualNodeWidget extends BaseNodeWidget<
 	shouldRenderPlot: boolean;
 	plot: any;
 	state: VisualNodeWidgetState;
+	plotRef: React.RefObject<any>;
 	constructor(props: VisualNodeWidgetProps) {
 		super(props);
 		this.shouldRenderPlot = false;
 		this.state = {
 			editorOpen: false,
+			overlayMode: false
 		};
 		this.onMouseDown = this.onMouseDown.bind(this);
-
+		this.plotRef = React.createRef();
 	}
 
 	static getDerivedStateFromProps(props: VisualNodeWidgetProps, state: VisualNodeWidgetState) {
@@ -116,6 +139,16 @@ export class VisualNodeWidget extends BaseNodeWidget<
 		}
 	}
 
+	toggleOverlayMode() {
+		this.setState({overlayMode: !this.state.overlayMode});
+	}
+
+	changeColormap(colormap: string) {
+		let data = this.state.data;
+		data[0].colorscale = colormap;
+		this.updatePlotlyDefs(data, null, null, this.state.chartName || 'heatmap');
+	}
+
 	renderContent() {
 		// Avoid plotting if no data is available
 		if (!this.props.node) {
@@ -130,6 +163,7 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			this.currentEvalId = this.props.node.evalId;
 			this.plot = (
 				<Plot
+					ref={this.plotRef}
 					data={PlotlyConfig.fullDataForChart(this.state.data, this.props.node.out)}
 					layout={this.state.layout}
 					// onClick={(e: any) => console.log(e)}
@@ -137,13 +171,42 @@ export class VisualNodeWidget extends BaseNodeWidget<
 			);
 		}
 
+		const styles = {
+			quickSelection: {
+				padding: 5,
+				display: 'flex',
+				justifyContent: 'space-between'
+			},
+			checkboxLabel: {
+				fontSize: '1.1em'
+			}
+		};
+
 		this.content = (
 			<div
+				className={this.state.overlayMode ? 'overlay-block' : ''}
 				onMouseDownCapture={this.onMouseDown}
 			>
 				{this.plot}
 				<div>
 					<button style={{width: '100%'}} onClick={() => this.openStyleEditor()}>Configure</button>
+					<div style={styles.quickSelection}>
+						<label style={styles.checkboxLabel}>
+							<input
+								style={{verticalAlign: 'middle'}}
+								type="checkbox"
+								name="checkbox-overlay"
+								onChange={() => this.toggleOverlayMode()}
+							/>
+							Overlay mode
+						</label>
+						<select onChange={(e) => this.changeColormap(e.target.value)}>
+							{COLORMAPS.map((map) =>
+								<option key={map} value={map}>{map}</option>
+							)}
+						</select>
+					</div>
+
 				</div>
 				<VisualConfigurator
 					open={this.state.editorOpen}

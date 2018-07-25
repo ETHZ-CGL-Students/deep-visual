@@ -19,10 +19,6 @@ export class CodeNodeModel extends BaseNodeModel {
 		});
 	}
 
-	onChange(listener: () => void) {
-		this.changeListener = listener;
-	}
-
 	changeCode(code: string) {
 		this.code = code;
 		if (this.changeListener) {

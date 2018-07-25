@@ -170,6 +170,8 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 								src={this.props.data}
 								theme="monokai"
 								name={false}
+								onAdd={(def: any) => this.onDataUpdate(def)}
+								onDelete={(def: any) => this.onDataUpdate(def)}
 								onEdit={(def: any) => this.onDataUpdate(def)}
 							/>
 						</div>
@@ -178,6 +180,8 @@ export default class VisualConfigurator extends React.Component<VisualConfigurat
 								src={this.props.layout}
 								theme="monokai"
 								name={false}
+								onAdd={(def: any) => this.onLayoutUpdate(def)}
+								onDelete={(def: any) => this.onLayoutUpdate(def)}
 								onEdit={(def: any) => this.onLayoutUpdate(def)}
 							/>
 						</div>
