@@ -4,8 +4,6 @@ import { BasePortModel } from '../Base/BasePortModel';
 
 export class CodeNodeModel extends BaseNodeModel {
 	code: string;
-	protected changeListener?: () => void;
-
 	constructor(block: CodeBlock, type: string = 'code') {
 		super(type, block.id);
 

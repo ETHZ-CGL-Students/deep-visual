@@ -19,6 +19,7 @@ export class BaseNodeModel extends NodeModel {
 	protected renamePortListener?: (port: BasePortModel, oldName: string) => void;
 	protected deletePortListener?: (port: BasePortModel) => void;
 	protected evalListener?: () => void;
+	protected changeListener?: () => void;
 
 	ports: { [s: string]: BasePortModel };
 	// TODO: Sadly the base node class maps the ports by name instead of id
@@ -146,5 +147,9 @@ export class BaseNodeModel extends NodeModel {
 			return;
 		}
 		super.remove();
+	}
+
+	onChange(listener: () => void) {
+		this.changeListener = listener;
 	}
 }
