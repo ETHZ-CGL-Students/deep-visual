@@ -119,7 +119,11 @@ export class BaseNodeWidget<
 						▶
 					</button>
 				)}
-				{node.err && <div style={{ padding: 4, color: 'darkred', background: 'antiquewhite'}}>{node.err}</div>}
+				{node.err &&
+					<div style={{ padding: 4, color: 'darkred', background: 'antiquewhite'}}>
+						{node.err.length < 500 ? node.err : 'Error too long. See console.'}
+					</div>
+				}
 				{canEval &&
 					!hideRawData && (
 						<pre style={{ margin: 0 }}>{JSON.stringify(node.out, null, 2)}</pre>
