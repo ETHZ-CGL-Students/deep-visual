@@ -198,7 +198,6 @@ class App extends React.Component<Props, OwnState> {
 				this.model.addLink(linkModel);
 			});
 
-			// this.engine.zoomToFit();
 			this.forceUpdate();
 		});
 	}
